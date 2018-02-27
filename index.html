@@ -1,0 +1,235 @@
+<!DOCTYPE html>
+<meta charset="utf-8">
+<style>
+
+.links line {
+  stroke: #999;
+  stroke-opacity: 0.6;
+}
+
+.nodes circle {
+  stroke: #fff;
+  stroke-width: 1.5px;
+}
+
+</style>
+<svg id="graph" width="800" height="600"></svg>
+<svg id="lines" width="600" height="600"></svg>
+<script src="https://d3js.org/d3.v4.min.js"></script>
+<script>
+
+var svg = d3.select("#graph"),
+    width = +svg.attr("width"),
+    height = +svg.attr("height");
+
+var lines = d3.select("#lines"),
+    margin = {top: 20, right: 20, bottom: 30, left: 50},
+    line_width = +lines.attr("width") - margin.left - margin.right,
+    line_height = +lines.attr("height") - margin.top - margin.bottom,
+    g = lines.append("g").attr("transform", "translate(" + margin.left + "," + margin.top + ")");
+
+function gen_pts(val) {
+    pts = []
+    for (var i = 0; i < 5; i++) {
+        pts.push({"iter": 5 - i, "pct": val})
+    }
+    return pts
+}
+
+var distribution = {
+    "susceptible": gen_pts(1),
+    "infected": gen_pts(0),
+    "recovered": gen_pts(0) 
+};
+
+var x = d3.scaleLinear()
+    .rangeRound([0, line_width])
+    .domain([-4, 0]);
+
+var y = d3.scaleLinear()
+    .rangeRound([line_height, 0])
+    .domain([0, 1]);
+
+var line = d3.line()
+    .x((d) => { return x(d.iter); })
+    .y((d) => { return y(d.pct); })
+
+g.append("g")
+    .attr("transform", "translate(0, " + height + ")")
+    .call(d3.axisBottom(x))
+    .attr("class", "y axis");
+
+g.append("g")
+    .call(d3.axisLeft(y))
+    .attr("class", "x axis")
+    .append("text")
+    .attr("fill", "#000")
+    .attr("transform", "rotate(-90)")
+    .attr("y", 6)
+    .attr("dy", "0.71em")
+    .attr("text-anchor", "end")
+    .text("Percent");
+
+g.append("path")
+    .datum(distribution.susceptible)
+    .attr("class", "line")
+    .attr("fill", "none")
+    .attr("stroke", "steelblue")
+    .attr("stroke-linejoin", "round")
+    .attr("stroke-linecap", "round")
+    .attr("stroke-width", 1.5)
+    .attr("d", line);
+
+var color = d3.scaleOrdinal(d3.schemeCategory20);
+
+var simulation = d3.forceSimulation()
+    .force("link", d3.forceLink().id(function(d) { return d.id; }))
+    .force("charge", d3.forceManyBody())
+    .force("center", d3.forceCenter(width / 2, height / 2));
+
+var prob_inf = 0.04;
+var prob_rec = 0.02;
+var total_individuals = 0;
+
+d3.json("miserables.json", function(error, graph) {
+  if (error) throw error;
+
+  graph.nodes.forEach((d) => {
+    total_individuals++;
+    d.status = "susceptible";
+    d.susceptibility = 0;
+    d.num_neighbors = graph.links.filter((e) => {
+        return d.id == e.source || d.id == e.target;
+    }).length;
+  });
+
+  var link = svg.append("g")
+      .attr("class", "links")
+    .selectAll("line")
+    .data(graph.links)
+    .enter().append("line")
+      .attr("stroke-width", function(d) { return Math.sqrt(d.value); });
+
+  var nodes = svg.append("g")
+      .attr("class", "nodes")
+    .selectAll("circle")
+    .data(graph.nodes)
+    .enter().append("circle")
+      .attr("r", 5)
+      .attr("fill", "green")
+      .on("click", infect)
+      .call(d3.drag()
+          .on("start", dragstarted)
+          .on("drag", dragged)
+          .on("end", dragended));
+
+  nodes.append("title")
+      .text(function(d) { return d.id; });
+
+  simulation
+      .nodes(graph.nodes)
+      .on("tick", ticked);
+
+  simulation.force("link")
+      .links(graph.links);
+
+  function ticked() {
+    link
+        .attr("x1", function(d) { return d.source.x; })
+        .attr("y1", function(d) { return d.source.y; })
+        .attr("x2", function(d) { return d.target.x; })
+        .attr("y2", function(d) { return d.target.y; });
+
+    nodes
+        .attr("cx", function(d) { return d.x; })
+        .attr("cy", function(d) { return d.y; });
+  }
+
+  function infect(node) {
+      node.status = "infected";
+      neighbors = graph.links.filter((d) => { 
+        return node.id == d.source.id || node.id == d.target.id; 
+      });
+      neighbors.forEach(function(e) {
+          var neighbor;
+          if (e.source.id = node.id) neighbor = e.target;
+          else if (e.target.id = node.id) neighbor = e.source;
+
+          if (neighbor.status == "susceptible") {
+            neighbor.susceptibility++;
+          }
+      });
+  }
+
+  var iter = 0
+
+  d3.interval(function() {
+    iter++;
+
+    graph.nodes.forEach(function(e) {
+      if (e.status == "susceptible") {
+        if (Math.random() < 2 * e.susceptibility / e.num_neighbors) {
+          infect(e);
+        }
+      } else if (e.status == "infected") {
+        if (Math.random() < 0.1) {
+          e.status = "recovered";
+        }
+      }
+    });
+
+    var current = {"susceptible": 0, "infected": 0, "recovered": 0};
+
+    d3.selectAll("circle")
+        .attr("fill", (d) => {
+            current[d.status]++;
+            if (d.status == "infected") return "red";
+            else if (d.status == "recovered") return "blue";
+            else return "green";
+        })
+
+    Object.keys(current).forEach(function(status) {
+        console.log(status)
+        console.log(distribution[status])
+      distribution[status].shift()
+      distribution[status].push({"iter": iter, "pct": current[status] / total_individuals})
+    })
+
+    var lines = d3.select("#lines").transition();
+
+    x.domain([iter - 5, iter]);
+    lines.select(".x.axis")
+        .duration(250)
+        .call(d3.axisBottom(x));
+
+    y.domain([0, 1]);
+    lines.select(".y.axis")
+        .duration(250)
+        .call(d3.axisLeft(y));
+
+    lines.select(".line")
+        .duration(250)
+        .attr("d", line(duration.susceptible));
+
+  }, 1000);
+
+});
+
+function dragstarted(d) {
+  if (!d3.event.active) simulation.alphaTarget(0.3).restart();
+  d.fx = d.x;
+  d.fy = d.y;
+}
+
+function dragged(d) {
+  d.fx = d3.event.x;
+  d.fy = d3.event.y;
+}
+
+function dragended(d) {
+  if (!d3.event.active) simulation.alphaTarget(0);
+  d.fx = null;
+  d.fy = null;
+}
+
+</script>
