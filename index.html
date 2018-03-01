@@ -13,10 +13,37 @@
 }
 
 </style>
-<svg id="graph" width="800" height="600"></svg>
-<svg id="lines" width="600" height="600"></svg>
+<svg id="graph" width="1200" height="800"></svg>
+Density
+<input id="density" type="range" min="0.01" max="0.02" step="0.0025">
+Clustering Coefficient
+<input id="cluster" type="range" min="0.5" max="0.9" step="0.1">
+<svg id="lines" width="1200" height="1200"></svg>
+
+<script
+  src="https://code.jquery.com/jquery-3.3.1.slim.min.js"
+  integrity="sha256-3edrmyuQ0w65f8gfBsqowzjJe2iM6n0nKciPUp8y+7E="
+  crossorigin="anonymous"></script>
 <script src="https://d3js.org/d3.v4.min.js"></script>
+<script src="https://d3js.org/d3-color.v1.min.js"></script>
+<script src="https://d3js.org/d3-scale-chromatic.v1.min.js"></script>
 <script>
+
+$(document).ready(function() {
+    redraw($("#density").val(), $("#cluster").val())
+})
+
+$("#cluster").on("change", function() {
+    var clustering_coeff = $(this).val();
+    var density = $("#density").val();
+    redraw(density, clustering_coeff);
+})
+
+$("#density").on("change", function() {
+    var density = $(this).val();
+    var clustering_coeff = $("#cluster").val();
+    redraw(density, clustering_coeff);
+})
 
 var svg = d3.select("#graph"),
     width = +svg.attr("width"),
@@ -27,20 +54,6 @@ var lines = d3.select("#lines"),
     line_width = +lines.attr("width") - margin.left - margin.right,
     line_height = +lines.attr("height") - margin.top - margin.bottom,
     g = lines.append("g").attr("transform", "translate(" + margin.left + "," + margin.top + ")");
-
-function gen_pts(val) {
-    pts = []
-    for (var i = 0; i < 5; i++) {
-        pts.push({"iter": 5 - i, "pct": val})
-    }
-    return pts
-}
-
-var distribution = {
-    "susceptible": gen_pts(1),
-    "infected": gen_pts(0),
-    "recovered": gen_pts(0) 
-};
 
 var x = d3.scaleLinear()
     .rangeRound([0, line_width])
@@ -70,150 +83,189 @@ g.append("g")
     .attr("text-anchor", "end")
     .text("Percent");
 
-g.append("path")
-    .datum(distribution.susceptible)
-    .attr("class", "line")
-    .attr("fill", "none")
-    .attr("stroke", "steelblue")
-    .attr("stroke-linejoin", "round")
-    .attr("stroke-linecap", "round")
-    .attr("stroke-width", 1.5)
-    .attr("d", line);
-
-var color = d3.scaleOrdinal(d3.schemeCategory20);
-
-var simulation = d3.forceSimulation()
-    .force("link", d3.forceLink().id(function(d) { return d.id; }))
-    .force("charge", d3.forceManyBody())
-    .force("center", d3.forceCenter(width / 2, height / 2));
+//g.append("path")
+//    .datum(distribution.susceptible)
+//    .attr("class", "line")
+//    .attr("fill", "none")
+//    .attr("stroke", "steelblue")
+//    .attr("stroke-linejoin", "round")
+//    .attr("stroke-linecap", "round")
+//    .attr("stroke-width", 1.5)
+//    .attr("d", line);
 
 var prob_inf = 0.04;
 var prob_rec = 0.02;
 var total_individuals = 0;
 
-d3.json("miserables.json", function(error, graph) {
-  if (error) throw error;
+function redraw(density, clustering_coeff) {
+    console.log(density, clustering_coeff);
 
-  graph.nodes.forEach((d) => {
-    total_individuals++;
-    d.status = "susceptible";
-    d.susceptibility = 0;
-    d.num_neighbors = graph.links.filter((e) => {
-        return d.id == e.source || d.id == e.target;
-    }).length;
-  });
+    d3.selectAll("line").remove();
+    d3.selectAll("circle").remove();
 
-  var link = svg.append("g")
-      .attr("class", "links")
-    .selectAll("line")
-    .data(graph.links)
-    .enter().append("line")
-      .attr("stroke-width", function(d) { return Math.sqrt(d.value); });
+    var simulation = d3.forceSimulation()
+        .force("link", d3.forceLink(graph.links)
+//            .strength(2)
+            .id(function(d) { return d.id; })
+//            .iterations(100))
+        )
+        .force("charge", d3.forceManyBody())
+        .force("center", d3.forceCenter(width / 2, height / 2));
 
-  var nodes = svg.append("g")
-      .attr("class", "nodes")
-    .selectAll("circle")
-    .data(graph.nodes)
-    .enter().append("circle")
-      .attr("r", 5)
-      .attr("fill", "green")
-      .on("click", infect)
-      .call(d3.drag()
-          .on("start", dragstarted)
-          .on("drag", dragged)
-          .on("end", dragended));
-
-  nodes.append("title")
-      .text(function(d) { return d.id; });
-
-  simulation
-      .nodes(graph.nodes)
-      .on("tick", ticked);
-
-  simulation.force("link")
-      .links(graph.links);
-
-  function ticked() {
-    link
-        .attr("x1", function(d) { return d.source.x; })
-        .attr("y1", function(d) { return d.source.y; })
-        .attr("x2", function(d) { return d.target.x; })
-        .attr("y2", function(d) { return d.target.y; });
-
-    nodes
-        .attr("cx", function(d) { return d.x; })
-        .attr("cy", function(d) { return d.y; });
-  }
-
-  function infect(node) {
-      node.status = "infected";
-      neighbors = graph.links.filter((d) => { 
-        return node.id == d.source.id || node.id == d.target.id; 
-      });
-      neighbors.forEach(function(e) {
-          var neighbor;
-          if (e.source.id = node.id) neighbor = e.target;
-          else if (e.target.id = node.id) neighbor = e.source;
-
-          if (neighbor.status == "susceptible") {
-            neighbor.susceptibility++;
-          }
-      });
-  }
-
-  var iter = 0
-
-  d3.interval(function() {
-    iter++;
-
-    graph.nodes.forEach(function(e) {
-      if (e.status == "susceptible") {
-        if (Math.random() < 2 * e.susceptibility / e.num_neighbors) {
-          infect(e);
+    d3.json(`data_${density}_${clustering_coeff}.json`, function(error, graph) {
+      if (error) throw error;
+    
+      var max = -100;
+    
+      sources = {}
+    
+      graph.nodes.forEach((n) => {
+        total_individuals++;
+        n.stories = [];
+        n.neighbors = [];
+        n.lean = +n.lean;
+        if (n.lean != 0.5) {
+            n.stories.push(n.lean)
+            sources[n.id] = n;
         }
-      } else if (e.status == "infected") {
-        if (Math.random() < 0.1) {
-          e.status = "recovered";
-        }
+        if (Math.abs(n.part) > max) max = Math.abs(n.part);
+      });
+    
+      graph.links.forEach((l) => {
+          graph.nodes[l.target].neighbors.push(l.source);
+          graph.nodes[l.source].neighbors.push(l.target);
+      });
+    
+      var link = svg.append("g")
+          .attr("class", "links")
+        .selectAll("line")
+        .data(graph.links)
+        .enter().append("line")
+          .attr("stroke-width", function(d) { return 1; });
+    
+      var radius = d3.scaleSqrt().domain([0, 0.01]).range([2, 8])
+    
+      var nodes = svg.append("g")
+          .attr("class", "nodes")
+        .selectAll("circle")
+        .data(graph.nodes)
+        .enter().append("circle")
+          .attr("r", (d) => { return d.group; }) // radius(d.group)})
+          .attr("fill", "green")
+          .attr("fill", function(d) { return d3.interpolateRdBu(d.lean); })
+          .style("stroke", "#666")
+    //      .on("click", infect)
+          .call(d3.drag()
+              .on("start", dragstarted)
+              .on("drag", dragged)
+              .on("end", dragended));
+    
+      var titles = nodes.append("title");
+    
+      simulation
+          .nodes(graph.nodes)
+          .on("tick", ticked);
+    
+      simulation.force("link")
+          .links(graph.links);
+    
+      function ticked() {
+        link
+            .attr("x1", function(d) { return d.source.x; })
+            .attr("y1", function(d) { return d.source.y; })
+            .attr("x2", function(d) { return d.target.x; })
+            .attr("y2", function(d) { return d.target.y; });
+    
+        nodes
+            .attr("cx", function(d) { return d.x; })
+            .attr("cy", function(d) { return d.y; });
       }
-    });
-
-    var current = {"susceptible": 0, "infected": 0, "recovered": 0};
-
-    d3.selectAll("circle")
-        .attr("fill", (d) => {
-            current[d.status]++;
-            if (d.status == "infected") return "red";
-            else if (d.status == "recovered") return "blue";
-            else return "green";
+    
+      function infect(node) {
+          node.status = "infected";
+          neighbors = graph.links.filter((d) => { 
+            return node.id == d.source.id || node.id == d.target.id; 
+          });
+          neighbors.forEach(function(e) {
+              var neighbor;
+              if (e.source.id = node.id) neighbor = e.target;
+              else if (e.target.id = node.id) neighbor = e.source;
+    
+              if (neighbor.status == "susceptible") {
+                neighbor.susceptibility++;
+              }
+          });
+      }
+    
+      var iter = 0
+    
+      d3.interval(function() {
+        iter++;
+    
+        graph.nodes.forEach(function(node) {
+        
+            if (sources.hasOwnProperty(node.id)) {
+            
+            } else {
+                
+                stories = []
+                node.neighbors.forEach(function(n) {
+                    neighbor = graph.nodes[n];
+                    if (neighbor.stories.length > 0) stories.push(neighbor.stories[0]);
+                });
+    
+                if (Math.random() > 1 / (stories.length + 1)) node.stories.pop();
+                new_story = stories[Math.floor(Math.random() * stories.length)];
+                node.stories.unshift(new_story);
+                if (stories.length > 0) {
+                    node.lean = stories.reduce((a, b) => { return a + b; }) / stories.length;
+                }
+            }
+        });
+    
+        nodes.style("stroke", (n) => { 
+            return d3.interpolateRdBu(n.lean);
         })
-
-    Object.keys(current).forEach(function(status) {
-        console.log(status)
-        console.log(distribution[status])
-      distribution[status].shift()
-      distribution[status].push({"iter": iter, "pct": current[status] / total_individuals})
-    })
-
-    var lines = d3.select("#lines").transition();
-
-    x.domain([iter - 5, iter]);
-    lines.select(".x.axis")
-        .duration(250)
-        .call(d3.axisBottom(x));
-
-    y.domain([0, 1]);
-    lines.select(".y.axis")
-        .duration(250)
-        .call(d3.axisLeft(y));
-
-    lines.select(".line")
-        .duration(250)
-        .attr("d", line(duration.susceptible));
-
-  }, 1000);
-
-});
+    
+        titles.text(function(d) { return d.lean; });
+    
+    //    var current = {"susceptible": 0, "infected": 0, "recovered": 0};
+    
+    //    d3.selectAll("circle")
+    //        .attr("fill", (d) => {
+    //            current[d.status]++;
+    //            if (d.status == "infected") return "red";
+    //            else if (d.status == "recovered") return "blue";
+    //            else return "green";
+    //        })
+    
+    //    Object.keys(current).forEach(function(status) {
+    //        console.log(status)
+    //        console.log(distribution[status])
+    //      distribution[status].shift()
+    //      distribution[status].push({"iter": iter, "pct": current[status] / total_individuals})
+    //    })
+    //
+    //    var lines = d3.select("#lines").transition();
+    //
+    //    x.domain([iter - 5, iter]);
+    //    lines.select(".x.axis")
+    //        .duration(250)
+    //        .call(d3.axisBottom(x));
+    //
+    //    y.domain([0, 1]);
+    //    lines.select(".y.axis")
+    //        .duration(250)
+    //        .call(d3.axisLeft(y));
+    //
+    //    lines.select(".line")
+    //        .duration(250)
+    //        .attr("d", line(duration.susceptible));
+    
+      }, 1000);
+        
+    });
+}
 
 function dragstarted(d) {
   if (!d3.event.active) simulation.alphaTarget(0.3).restart();
