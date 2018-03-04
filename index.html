@@ -16,6 +16,20 @@
     margin-top: 20px; 
 }
 
+ul {
+    list-style-type: none;
+}
+
+li.spreader {
+    padding: 4px;
+    background-color: #E57373;
+}
+
+li.stifler {
+    padding: 4px;
+    background-color: #4FC3F7;
+}
+
 </style>
 
 </style>
@@ -62,63 +76,36 @@ var height = $("#graph").outerHeight();
 
 $(document).ready(function() {
     redraw($("#density").val(), $("#cluster").val())
-})
+});
 
 $("#cluster").on("change", function() {
     var clustering_coeff = $(this).val();
     var density = $("#density").val();
     redraw(density, clustering_coeff);
-})
+});
 
 $("#density").on("change", function() {
     var density = $(this).val();
     var clustering_coeff = $("#cluster").val();
     redraw(density, clustering_coeff);
-})
+});
 
+var tooltip = d3.select("body").append("div")
+    .attr("class", "tooltip");
 
-//var lines = d3.select("#lines"),
-//    margin = {top: 20, right: 20, bottom: 30, left: 50},
-//    line_width = +lines.attr("width") - margin.left - margin.right,
-//    line_height = +lines.attr("height") - margin.top - margin.bottom,
-//    g = lines.append("g").attr("transform", "translate(" + margin.left + "," + margin.top + ")");
+var activeNode = -1;
 
-//var x = d3.scaleLinear()
-//    .rangeRound([0, line_width])
-//    .domain([-4, 0]);//
-//var y = d3.scaleLinear()
-//    .rangeRound([line_height, 0])
-//    .domain([0, 1]);
-
-//var line = d3.line()
-//    .x((d) => { return x(d.iter); })
-//    .y((d) => { return y(d.pct); })
-
-//g.append("g")
-//    .attr("transform", "translate(0, " + height + ")")
-//    .call(d3.axisBottom(x))
-//    .attr("class", "y axis");
-//
-//g.append("g")
-//    .call(d3.axisLeft(y))
-//    .attr("class", "x axis")
-//    .append("text")
-//    .attr("fill", "#000")
-//    .attr("transform", "rotate(-90)")
-//    .attr("y", 6)
-//    .attr("dy", "0.71em")
-//    .attr("text-anchor", "end")
-//    .text("Percent");
-
-//g.append("path")
-//    .datum(distribution.susceptible)
-//    .attr("class", "line")
-//    .attr("fill", "none")
-//    .attr("stroke", "steelblue")
-//    .attr("stroke-linejoin", "round")
-//    .attr("stroke-linecap", "round")
-//    .attr("stroke-width", 1.5)
-//    .attr("d", line);
+function updateTooltip(rumors) {
+   tooltip.html(function(d) {
+        var text = "<ul>";
+        Object.keys(rumors).forEach(function(rumor) {
+            text += "<li class=\"" + rumors[rumor] + "\">" + rumor + " " + rumors[rumor] + "</li>";
+        })
+        return text; 
+    })
+    .style("left", (d3.event.pageX) + "px")
+    .style("top", (d3.event.pageY) + "px");
+}
 
 function redraw(density, clustering_coeff) {
 
@@ -137,6 +124,8 @@ function redraw(density, clustering_coeff) {
     d3.json(`data_${density}_${clustering_coeff}.json`, function(error, graph) {
         if (error) throw error;
     
+        d3.select("#rumor-list").selectAll("svg").remove();
+
         graph.nodes.forEach((node) => {
             totalIndividuals++;
             node.rumors = {};
@@ -163,33 +152,56 @@ function redraw(density, clustering_coeff) {
             .attr("r", 5)
             .attr("fill", function(d) { return d3.interpolateReds(0); })
             .style("stroke", "#666")
+            .on("mouseover", function(node) {
+                activeNode = node.id;
+
+                tooltip.transition()
+                    .duration(200)
+                    .style("opacity", 1);
+
+                tooltip.html(function(d) {
+                    var text = "<ul>";
+                    Object.keys(node.rumors).forEach(function(rumor) {
+                        text += "<li class=\"" + 
+                            node.rumors[rumor] + 
+                            "\">" + rumor + " " + 
+                            node.rumors[rumor] + "</li>";
+                    });
+                    return text; 
+                })
+                .style("left", (d3.event.pageX) + "px")
+                .style("top", (d3.event.pageY) + "px");
+            })
+            .on("mouseout", function(node) {
+                activeNode = -1;
+                tooltip.transition()
+                    .duration(200)
+                    .style("opacity", 0);
+
+            })
             .on("click", infect)
             .call(d3.drag()
                 .on("start", dragstarted)
                 .on("drag", dragged)
                 .on("end", dragended));
-    
-        var titles = nodes.append("title");
 
-        d3.select("#rumor-list").selectAll("svg").remove();
-    
         simulation
             .nodes(graph.nodes)
             .on("tick", ticked);
-    
+
         simulation.force("link")
             .links(graph.links);
-    
+
         function ticked() {
-          link
-              .attr("x1", function(d) { return d.source.x; })
-              .attr("y1", function(d) { return d.source.y; })
-              .attr("x2", function(d) { return d.target.x; })
-              .attr("y2", function(d) { return d.target.y; });
-    
-          nodes
-              .attr("cx", function(d) { return d.x; })
-              .attr("cy", function(d) { return d.y; });
+            link
+                .attr("x1", function(d) { return d.source.x; })
+                .attr("y1", function(d) { return d.source.y; })
+                .attr("x2", function(d) { return d.target.x; })
+                .attr("y2", function(d) { return d.target.y; });
+
+            nodes
+                .attr("cx", function(d) { return d.x; })
+                .attr("cy", function(d) { return d.y; });
         }
 
         function dragstarted(d) {
@@ -197,12 +209,12 @@ function redraw(density, clustering_coeff) {
             d.fx = d.x;
             d.fy = d.y;
         }
-    
+
         function dragged(d) {
             d.fx = d3.event.x;
             d.fy = d3.event.y;
         }
-    
+
         function dragended(d) {
             if (!d3.event.active) simulation.alphaTarget(0);
             d.fx = null;
@@ -217,9 +229,11 @@ function redraw(density, clustering_coeff) {
         var rumorStates = {};
 
         function infect(node) {
+            if (rumor == 0) {
+                startInterval();
+            }
             rumor++;
 
-            console.log(rumor);
             rumorStates[rumor] = {};
             rumorStates[rumor].ignorant = totalIndividuals - 1;
             rumorStates[rumor].spreading = 1;
@@ -247,22 +261,22 @@ function redraw(density, clustering_coeff) {
                 .rangeRound([chart.height, 0])
                 .domain([0, totalIndividuals]);
 
-            chart.ignorantLine = d3.line()
+            chart.line = d3.line()
                 .x((d) => { return chart.x(d.iter); })
-                .y((d) => { return chart.y(d.ignorant); });
+                .y((d) => { return chart.y(d.count); });
 
-            chart.SpreadLine = d3.line()
+            chart.spreadLine = d3.line()
                 .x((d) => { return chart.x(d.iter); })
                 .y((d) => { return chart.y(d.spreading); });
 
-            chart.StifledLine = d3.line()
+            chart.stifledLine = d3.line()
                 .x((d) => { return chart.x(d.iter); })
                 .y((d) => { return chart.y(d.stifling); });
 
             chart.axisBottom = chart.element.append("g")
                 .attr("transform", "translate(0, " + chart.height + ")")
                 .call(d3.axisBottom(chart.x).ticks(10));
-            
+
             chart.axisLeft = chart.element.append("g")
                 .attr("transform", "translate(" + chart.width + ",0)")
                 .call(d3.axisLeft(chart.y).ticks(5))
@@ -280,11 +294,11 @@ function redraw(density, clustering_coeff) {
 
             chart.data = {
                 "ignorant": [{"iter": iter, "count": totalIndividuals - 1}],
-                "spreading": [{"iter": iter, "ignorant": 1}],
-                "stifling": [{"iter": iter, "ignorant": 0}]
+                "spreading": [{"iter": iter, "count": 1}],
+                "stifling": [{"iter": iter, "count": 0}]
             };
 
-            chart.element.append("path")
+            chart.lineIgnorant = chart.element.append("path")
                 .data(chart.data.ignorant)
                 .attr("class", "line ignorant")
                 .attr("fill", "none")
@@ -293,8 +307,8 @@ function redraw(density, clustering_coeff) {
                 .attr("stroke-linecap", "round")
                 .attr("stroke-width", 1.5)
                 .attr("d", chart.line);
-            
-            chart.element.append("path")
+
+            chart.lineSpreading = chart.element.append("path")
                 .data(chart.data.spreading)
                 .attr("class", "line spreading")
                 .attr("fill", "none")
@@ -304,7 +318,7 @@ function redraw(density, clustering_coeff) {
                 .attr("stroke-width", 1.5)
                 .attr("d", chart.line);
 
-            chart.element.append("path")
+            chart.lineStifling = chart.element.append("path")
                 .data(chart.data.stifling)
                 .attr("class", "line stifling")
                 .attr("fill", "none")
@@ -321,151 +335,136 @@ function redraw(density, clustering_coeff) {
         var gamma = 0.3;
         var eta = 0.2;
         var delta = 0.4;
-    
 
-        d3.interval(function() {
-            iter++;
-    
-            graph.nodes.forEach(function(node) {
+        function startInterval() {
+            d3.interval(function() {
+                iter++;
 
-                neighbor = graph.nodes[node.neighbors[Math.floor(Math.random()*node.neighbors.length)]];
-                // if neighbor has not yet interacted with other node this interval
-                if (!neighbor.hasOwnProperty("new_rumors")) {
-                    neighbor.new_rumors = {};
-                    Object.keys(node.rumors).forEach(function(rumor) {
-                        if (node.rumors[rumor] == "spreader") {
-                            if (!neighbor.rumors.hasOwnProperty(rumor)) {
-                                neighbor.new_rumors[rumor] = Math.random() < lambda ? "spreader" : "stifler";
-                            } 
-                        } else if (node.rumors[rumor] == "stifler") {
-                            if (!neighbor.rumors.hasOwnProperty(rumor)) {
-                                neighbor.new_rumors[rumor] = Math.random() < gamma ? "spreader" : "stifler";
-                            } else if (neighbor.rumors[rumor] == "spreader") {
-                                neighbor.new_rumors[rumor] = Math.random() < delta ? "spreader" : "stifler";
+                // interaction between nodes and neighbors
+                graph.nodes.forEach(function(node) {
+
+                    neighbor = graph.nodes[node.neighbors[Math.floor(Math.random()*node.neighbors.length)]];
+                    // if neighbor has not yet interacted with other node this interval
+                    if (!neighbor.hasOwnProperty("new_rumors")) {
+                        neighbor.new_rumors = {};
+                        Object.keys(node.rumors).forEach(function(rumor) {
+                            if (node.rumors[rumor] == "spreader") {
+                                if (!neighbor.rumors.hasOwnProperty(rumor)) {
+                                    neighbor.new_rumors[rumor] = Math.random() < lambda ? "spreader" : "stifler";
+                                } 
+                            } else if (node.rumors[rumor] == "stifler") {
+                                if (!neighbor.rumors.hasOwnProperty(rumor)) {
+                                    neighbor.new_rumors[rumor] = Math.random() < gamma ? "spreader" : "stifler";
+                                } else if (neighbor.rumors[rumor] == "spreader") {
+                                    neighbor.new_rumors[rumor] = Math.random() < delta ? "spreader" : "stifler";
+                                }
+                                } else if (neighbor.rumors[rumor] == "spreader" && Math.random() < eta) {
+                                neighbor.new_rumors[rumor] = "stifler";
                             }
-                         } else if (neighbor.rumors[rumor] == "spreader" && Math.random() < eta) {
-                            neighbor.new_rumors[rumor] = "stifler";
-                        }
-                    });
-                }
-            });
-
-            console.log(rumorStates)
-            rumorStates[rumor].ignorant = totalIndividuals;
-            rumorStates[rumor].spreading = 0;
-            rumorStates[rumor].stifling = 0;
-
-             // update graph data
-            graph.nodes.forEach(function(node) {
-                if (node.hasOwnProperty("new_rumors")) {
-                    Object.keys(node.new_rumors).forEach(function(rumor) {
-                        node.rumors[rumor] = node.new_rumors[rumor];
-                    });
-                    delete node.new_rumors;
-                }
-
-                // count number of active rumors
-                node.spreading = 0;
-                Object.keys(node.rumors).forEach(function(rumor) {
-                    if (node.rumors[rumor] == "spreader") {
-                        rumorStates[rumor].spreading++;
-                        rumorStates[rumor].ignorant--;
-                        node.spreading++;
-                    } else if (node.rumors[rumor] == "stifler") {
-                        rumorStates[rumor].stifling++;
-                        rumorStates[rumor].ignorant--;
+                        });
                     }
                 });
-            });
 
-            nodes.style("fill", (node) => { 
-                if (selectedRumor == -1) {
-                    return d3.interpolateReds(node.spreading / 5); 
-                } else if (node.rumors[selectedRumor] == "spreader") {
-                    return "#E57373";
-                } else if (node.rumors[selectedRumor] == "stifler") {
-                    return "#81C784";
-                } else {
-                    return "#4FC3F7";
-                }
-            });
-    
-            titles.text(function(node) { 
-                var result = "";
-                Object.keys(node.rumors).forEach(function(rumor) {
-                    result += rumor + " " + node.rumors[rumor] + "\n";
-                })
-                return result; 
-            });
+                console.log(rumorStates);
+                console.log(rumor);
+                rumorStates[rumor].ignorant = totalIndividuals;
+                rumorStates[rumor].spreading = 0;
+                rumorStates[rumor].stifling = 0;
 
-            Object.keys(charts).forEach(function(rumor) {
-                chart = charts[rumor];
-                chart.data.ignorant.push({"iter": iter, "count": rumorStates[rumor].ignorant});
-                chart.data.spreading.push({"iter": iter, "count": rumorStates[rumor].spreading});
-                chart.data.stifling.push({"iter": iter, "count": rumorStates[rumor].stifling});
-                chart.x.domain([iter - 10, iter]);
-                chart.y.domain([0, totalIndividuals]);
+                // update graph data
+                graph.nodes.forEach(function(node) {
 
-                //chart.element.transition();
-                chart.axisBottom
-                    .call(d3.axisBottom(chart.x).ticks(10))
-                chart.axisLeft
-                    .call(d3.axisLeft(chart.y))
-                    .append("text")
-                    .attr("fill", "#000")
-                    .attr("transform", "rotate(-90)")
-                    .attr("y", 6)
-                    .attr("dy", "0.71em")
-                    .attr("text-anchor", "end")
-                    .text("Ratios");
+                    if (node.hasOwnProperty("new_rumors")) {
+                        Object.keys(node.new_rumors).forEach(function(rumor) {
+                            node.rumors[rumor] = node.new_rumors[rumor];
+                        });
+                        delete node.new_rumors;
+                    }
 
-                chart.element.select(".line.ignorant")
-                    .datum(chart.data.ignorant)
-                    .attr("d", chart.line);
-    
-                chart.element.select(".line.spreading")
-                    .datum(chart.data.spreading)
-                    .attr("d", chart.line);
+                   // count number of active rumors
+                    node.spreading = 0;
+                    node.stifling = 0;
+                    Object.keys(node.rumors).forEach(function(r) {
 
-                chart.element.select(".line.stifling")
-                    .datum(chart.data.stifling)
-                    .attr("d", chart.line);
-            });
-     //      var current = {"susceptible": 0, "infected": 0, "recovered": 0};
+                        if (node.rumors[r] == "spreader") {
+                            rumorStates[r].spreading++;
+                            rumorStates[r].ignorant--;
+                            //node.spreading += 1 / Math.pow(rumor - r, 2);
+                            node.spreading += 1;
+                        } else if (node.rumors[r] == "stifler") {
+                            rumorStates[r].stifling++;
+                            rumorStates[r].ignorant--;
+                            node.stifling += 1 / Math.pow(rumor - r, 2);
+                        }
+                    });
+
+                    if (node.id == activeNode) {
+                        tooltip.html(function(d) {
+                            console.log(node.rumors);
+                            var text = "<ul>";
+                            Object.keys(node.rumors).forEach(function(rumor) {
+                                text += "<li class=\"" + node.rumors[rumor] + "\">" + rumor + " " + node.rumors[rumor] + "</li>";
+                            })
+                            return text; 
+                        })
+                    }
+                });
+
+                nodes.style("fill", (node) => { 
+                    if (selectedRumor == -1) {
+                        // TODO
+                        //return d3.interpolateRdYlGn((node.stifling - node.spreading) / 5);
+                        return d3.interpolateReds(node.spreading / 5);
+                    } else if (node.rumors[selectedRumor] == "spreader") {
+                        return "#E57373";
+                    } else if (node.rumors[selectedRumor] == "stifler") {
+                        return "#81C784";
+                    } else {
+                        return d3.interpolateReds(0);
+                    }
+                });
+
+                // update chart data
+                Object.keys(charts).forEach(function(rumor) {
+
+                    chart = charts[rumor];
+                    chart.data.ignorant.push({"iter": iter, "count": rumorStates[rumor].ignorant});
+                    chart.data.spreading.push({"iter": iter, "count": rumorStates[rumor].spreading});
+                    chart.data.stifling.push({"iter": iter, "count": rumorStates[rumor].stifling});
+                    chart.x.domain([iter - 10, iter]);
+                    chart.y.domain([0, totalIndividuals]);
+
+                    console.log(rumorStates[rumor]);
+                    console.log(chart.data);
+
+                    //chart.element.transition();
+                    chart.axisBottom
+                        .call(d3.axisBottom(chart.x).ticks(10))
+                    chart.axisLeft
+                        .call(d3.axisLeft(chart.y))
+                        .append("text")
+                        .attr("fill", "#000")
+                        .attr("transform", "rotate(-90)")
+                        .attr("y", 6)
+                        .attr("dy", "0.71em")
+                        .attr("text-anchor", "end")
+                        .text("Ratios");
+
+                    chart.element.select(".line.ignorant")
+                        .datum(chart.data.ignorant)
+                        .attr("d", chart.line);
     
-    //      d3.selectAll("circle")
-    //          .attr("fill", (d) => {
-    //              current[d.status]++;
-    //              if (d.status == "infected") return "red";
-    //              else if (d.status == "recovered") return "blue";
-    //              else return "green";
-    //          })
-    
-    //      Object.keys(current).forEach(function(status) {
-    //          console.log(status)
-    //          console.log(distribution[status])
-    //        distribution[status].shift()
-    //        distribution[status].push({"iter": iter, "pct": current[status] / total_individuals})
-    //      })
-    //
-    //      var lines = d3.select("#lines").transition();
-    //
-    //      x.domain([iter - 5, iter]);
-    //      lines.select(".x.axis")
-    //          .duration(250)
-    //          .call(d3.axisBottom(x));
-    //
-    //      y.domain([0, 1]);
-    //      lines.select(".y.axis")
-    //          .duration(250)
-    //          .call(d3.axisLeft(y));
-    //
-    //      lines.select(".line")
-    //          .duration(250)
-    //          .attr("d", line(duration.susceptible));
-    
-        }, 1000);
-        
+                    chart.lineSpreading
+                        .datum(chart.data.spreading)
+                        .attr("d", chart.line);
+
+                    chart.element.select(".line.stifling")
+                        .datum(chart.data.stifling)
+                        .attr("d", chart.line);
+                });
+   
+            }, 1000);
+        }
     });
 }
 
