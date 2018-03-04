@@ -120,12 +120,9 @@ $("#density").on("change", function() {
 //    .attr("stroke-width", 1.5)
 //    .attr("d", line);
 
-var prob_inf = 0.04;
-var prob_rec = 0.02;
-var total_individuals = 0;
-
 function redraw(density, clustering_coeff) {
-    console.log(density, clustering_coeff);
+
+    var totalIndividuals = 0;
 
     d3.selectAll("line").remove();
     d3.selectAll("circle").remove();
@@ -141,7 +138,7 @@ function redraw(density, clustering_coeff) {
         if (error) throw error;
     
         graph.nodes.forEach((node) => {
-            total_individuals++;
+            totalIndividuals++;
             node.rumors = {};
             node.neighbors = [];
             node.spreading = 0;
@@ -213,15 +210,20 @@ function redraw(density, clustering_coeff) {
         }
 
         var iter = 0;
-        var rumor = 1;
+        var rumor = 0;
         var selectedRumor = -1;
 
         var charts = {};
-        var spread = {};
-        var maxSpread = 20;
+        var rumorStates = {};
 
         function infect(node) {
-            spread[rumor] = 1;
+            rumor++;
+
+            console.log(rumor);
+            rumorStates[rumor] = {};
+            rumorStates[rumor].ignorant = totalIndividuals - 1;
+            rumorStates[rumor].spreading = 1;
+            rumorStates[rumor].stifling = 0;
             node.rumors[rumor] = "spreader";
 
             var chart = {};
@@ -239,19 +241,27 @@ function redraw(density, clustering_coeff) {
 
             chart.x = d3.scaleLinear()
                 .rangeRound([0, chart.width])
-                .domain([iter - 5, iter]);
+                .domain([iter - 10, iter]);
 
             chart.y = d3.scaleLinear()
                 .rangeRound([chart.height, 0])
-                .domain([0, maxSpread]);
+                .domain([0, totalIndividuals]);
 
-            chart.line = d3.line()
+            chart.ignorantLine = d3.line()
                 .x((d) => { return chart.x(d.iter); })
-                .y((d) => { return chart.y(d.count); });
+                .y((d) => { return chart.y(d.ignorant); });
+
+            chart.SpreadLine = d3.line()
+                .x((d) => { return chart.x(d.iter); })
+                .y((d) => { return chart.y(d.spreading); });
+
+            chart.StifledLine = d3.line()
+                .x((d) => { return chart.x(d.iter); })
+                .y((d) => { return chart.y(d.stifling); });
 
             chart.axisBottom = chart.element.append("g")
                 .attr("transform", "translate(0, " + chart.height + ")")
-                .call(d3.axisBottom(chart.x).ticks(5));
+                .call(d3.axisBottom(chart.x).ticks(10));
             
             chart.axisLeft = chart.element.append("g")
                 .attr("transform", "translate(" + chart.width + ",0)")
@@ -264,19 +274,47 @@ function redraw(density, clustering_coeff) {
                 .attr("text-anchor", "end")
                 .text("Ratios");
 
-            chart.data = [{"iter": iter, "count": 1}];
+            chart.line = d3.line()
+                .x((d) => { return chart.x(d.iter); })
+                .y((d) => { return chart.y(d.count); });
+
+            chart.data = {
+                "ignorant": [{"iter": iter, "count": totalIndividuals - 1}],
+                "spreading": [{"iter": iter, "ignorant": 1}],
+                "stifling": [{"iter": iter, "ignorant": 0}]
+            };
 
             chart.element.append("path")
-                .attr("class", "line")
+                .data(chart.data.ignorant)
+                .attr("class", "line ignorant")
                 .attr("fill", "none")
-                .attr("stroke", "red")
+                .attr("stroke", "#2196F3")
                 .attr("stroke-linejoin", "round")
                 .attr("stroke-linecap", "round")
                 .attr("stroke-width", 1.5)
-                .attr("d", chart.line(chart.data));
+                .attr("d", chart.line);
             
+            chart.element.append("path")
+                .data(chart.data.spreading)
+                .attr("class", "line spreading")
+                .attr("fill", "none")
+                .attr("stroke", "#F44336")
+                .attr("stroke-linejoin", "round")
+                .attr("stroke-linecap", "round")
+                .attr("stroke-width", 1.5)
+                .attr("d", chart.line);
+
+            chart.element.append("path")
+                .data(chart.data.stifling)
+                .attr("class", "line stifling")
+                .attr("fill", "none")
+                .attr("stroke", "#4CAF50")
+                .attr("stroke-linejoin", "round")
+                .attr("stroke-linecap", "round")
+                .attr("stroke-width", 1.5)
+                .attr("d", chart.line);
+
             charts[rumor] = chart;
-            rumor++;
         }
 
         var lambda = 0.8;
@@ -312,10 +350,12 @@ function redraw(density, clustering_coeff) {
                 }
             });
 
-            Object.keys(spread).forEach(function(rumor) { 
-                spread[rumor] = 0;
-            });
-            // update graph data
+            console.log(rumorStates)
+            rumorStates[rumor].ignorant = totalIndividuals;
+            rumorStates[rumor].spreading = 0;
+            rumorStates[rumor].stifling = 0;
+
+             // update graph data
             graph.nodes.forEach(function(node) {
                 if (node.hasOwnProperty("new_rumors")) {
                     Object.keys(node.new_rumors).forEach(function(rumor) {
@@ -328,24 +368,27 @@ function redraw(density, clustering_coeff) {
                 node.spreading = 0;
                 Object.keys(node.rumors).forEach(function(rumor) {
                     if (node.rumors[rumor] == "spreader") {
-                        spread[rumor]++;
+                        rumorStates[rumor].spreading++;
+                        rumorStates[rumor].ignorant--;
                         node.spreading++;
+                    } else if (node.rumors[rumor] == "stifler") {
+                        rumorStates[rumor].stifling++;
+                        rumorStates[rumor].ignorant--;
                     }
                 });
             });
-    
-            nodes.style("fill", (node) => { 
-                    if (selectedRumor == -1) {
-                        return d3.interpolateReds(node.spreading / 5); 
-                    } else if (node.rumors[selectedRumor] == "spreader") {
-                        return "#E57373";
-                    } else if (node.rumors[selectedRumor] == "stifler") {
-                        return "#81C784";
-                    } else {
-                        return "#4FC3F7";
-                    }
-                })
 
+            nodes.style("fill", (node) => { 
+                if (selectedRumor == -1) {
+                    return d3.interpolateReds(node.spreading / 5); 
+                } else if (node.rumors[selectedRumor] == "spreader") {
+                    return "#E57373";
+                } else if (node.rumors[selectedRumor] == "stifler") {
+                    return "#81C784";
+                } else {
+                    return "#4FC3F7";
+                }
+            });
     
             titles.text(function(node) { 
                 var result = "";
@@ -357,19 +400,15 @@ function redraw(density, clustering_coeff) {
 
             Object.keys(charts).forEach(function(rumor) {
                 chart = charts[rumor];
-                chart.data.push({"iter": iter, "count": spread[rumor]});
-                chart.x.domain([iter - 5, iter]);
-                chart.y.domain([0, maxSpread]);
-                console.log(maxSpread);
-                
-                if (spread[rumor] > maxSpread) {
-                    console.log(maxSpread);
-                    maxSpread = spread[rumor];
-                }
+                chart.data.ignorant.push({"iter": iter, "count": rumorStates[rumor].ignorant});
+                chart.data.spreading.push({"iter": iter, "count": rumorStates[rumor].spreading});
+                chart.data.stifling.push({"iter": iter, "count": rumorStates[rumor].stifling});
+                chart.x.domain([iter - 10, iter]);
+                chart.y.domain([0, totalIndividuals]);
 
                 //chart.element.transition();
                 chart.axisBottom
-                    .call(d3.axisBottom(chart.x).ticks(5))
+                    .call(d3.axisBottom(chart.x).ticks(10))
                 chart.axisLeft
                     .call(d3.axisLeft(chart.y))
                     .append("text")
@@ -380,12 +419,19 @@ function redraw(density, clustering_coeff) {
                     .attr("text-anchor", "end")
                     .text("Ratios");
 
-                chart.element.select(".line")
-                    .datum(chart.data)
+                chart.element.select(".line.ignorant")
+                    .datum(chart.data.ignorant)
                     .attr("d", chart.line);
-            })
     
-    //      var current = {"susceptible": 0, "infected": 0, "recovered": 0};
+                chart.element.select(".line.spreading")
+                    .datum(chart.data.spreading)
+                    .attr("d", chart.line);
+
+                chart.element.select(".line.stifling")
+                    .datum(chart.data.stifling)
+                    .attr("d", chart.line);
+            });
+     //      var current = {"susceptible": 0, "infected": 0, "recovered": 0};
     
     //      d3.selectAll("circle")
     //          .attr("fill", (d) => {
