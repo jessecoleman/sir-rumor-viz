@@ -144,7 +144,7 @@ flow.stifler.append("text")
     .attr("text-anchor", "middle")
     .text("Stifler");
 
-// TODO @Ethan, create arrows between the three text boxes to resemble the chart
+// TODO @Ethan or @Evan, create arrows between the three text boxes to resemble the chart
 // on page 996 of this paper 
 // https://www-sciencedirect-com.offcampus.lib.washington.edu/science/article/pii/S037843711200934X
 flow.arrow = flow.svg
@@ -222,6 +222,7 @@ function redraw(density, clustering_coeff) {
         graph.nodes.forEach((node) => {
             totalIndividuals++;
             node.rumors = {};
+            node.newRumors = {};
             node.neighbors = [];
             node.spreading = 0;
         });
@@ -427,8 +428,8 @@ function redraw(density, clustering_coeff) {
 
         var lambda = 0.8;
         var gamma = 0.3;
-        var eta = 0.2;
-        var delta = 0.4;
+        var eta = 0.6;
+        var delta = 0.2;
 
         function startInterval() {
             d3.interval(function() {
@@ -438,23 +439,31 @@ function redraw(density, clustering_coeff) {
                 graph.nodes.forEach(function(node) {
 
                     neighbor = graph.nodes[node.neighbors[Math.floor(Math.random()*node.neighbors.length)]];
-                    // if neighbor has not yet interacted with other node this interval
-                    if (!neighbor.hasOwnProperty("new_rumors")) {
-                        neighbor.new_rumors = {};
-                        Object.keys(node.rumors).forEach(function(rumor) {
-                            if (node.rumors[rumor] == "spreader") {
-                                if (!neighbor.rumors.hasOwnProperty(rumor)) {
-                                    neighbor.new_rumors[rumor] = Math.random() < lambda ? "spreader" : "stifler";
-                                } 
-                            } else if (node.rumors[rumor] == "stifler") {
-                                if (!neighbor.rumors.hasOwnProperty(rumor)) {
-                                    neighbor.new_rumors[rumor] = Math.random() < gamma ? "spreader" : "stifler";
-                                } else if (neighbor.rumors[rumor] == "spreader") {
-                                    neighbor.new_rumors[rumor] = Math.random() < delta ? "spreader" : "stifler";
+
+                    // probability of interacting decreases with number of previous interactions
+                    if (1 / (Object.keys(neighbor.rumors).length + 1) > Math.random()) {
+
+                        var spread = false;
+                        var rumorAge = 1;
+                        var r = Math.random();                        
+                        Object.keys(node.rumors).sort().reverse().forEach(function(rumor) {
+                            // probability of sharing rumor given age
+                            if (1 / (1 - Math.pow(2, rumorAge)) < r && !spread) {
+                                spread = true;
+                                if (node.rumors[rumor] == "spreader") {
+                                    if (!neighbor.rumors.hasOwnProperty(rumor)) {
+                                        neighbor.newRumors[rumor] = Math.random() < lambda ? "spreader" : "stifler";
+                                    } else if (neighbor.rumors[rumor] == "spreader") {
+                                        neighbor.newRumors[rumor] = Math.random() > gamma ? "spreader" : "stifler";
+                                    } 
+                                } else if (node.rumors[rumor] == "stifler" && neighbor.rumors[rumor] == "spreader") {
+                                    neighbor.newRumors[rumor] = Math.random() > eta ? "spreader" : "stifler";
                                 }
-                                } else if (neighbor.rumors[rumor] == "spreader" && Math.random() < eta) {
-                                neighbor.new_rumors[rumor] = "stifler";
+                            } else if (Math.random() < delta) {
+                                // probability that node forgets rumor
+                                node.newRumors[rumor] = "stifler";
                             }
+                            rumorAge++;
                         });
                     }
                 });
@@ -467,12 +476,10 @@ function redraw(density, clustering_coeff) {
                 // update graph data
                 graph.nodes.forEach(function(node) {
 
-                    if (node.hasOwnProperty("new_rumors")) {
-                        Object.keys(node.new_rumors).forEach(function(rumor) {
-                            node.rumors[rumor] = node.new_rumors[rumor];
-                        });
-                        delete node.new_rumors;
-                    }
+                    Object.keys(node.newRumors).forEach(function(rumor) {
+                        node.rumors[rumor] = node.newRumors[rumor];
+                    });
+                    node.newRumors = {};
 
                    // count number of active rumors
                     node.spreading = 0;
@@ -493,7 +500,6 @@ function redraw(density, clustering_coeff) {
 
                     if (node.id == activeNode) {
                         tooltip.html(function(d) {
-                            console.log(node.rumors);
                             var text = "<ul>";
                             Object.keys(node.rumors).forEach(function(rumor) {
                                 text += "<li class=\"" + node.rumors[rumor] + "\">" + rumor + " " + node.rumors[rumor] + "</li>";
@@ -505,9 +511,7 @@ function redraw(density, clustering_coeff) {
 
                 nodes.style("fill", (node) => { 
                     if (selectedRumor == -1) {
-                        // TODO
-                        //return d3.interpolateRdYlGn((node.stifling - node.spreading) / 5);
-                        return d3.interpolateReds(node.spreading / 5);
+                        return d3.interpolateReds(Math.pow(1 - (1 / Math.pow(2, node.spreading)), 2));
                     } else if (node.rumors[selectedRumor] == "spreader") {
                         return "#E57373";
                     } else if (node.rumors[selectedRumor] == "stifler") {
