@@ -13,13 +13,32 @@
 }
 
 </style>
-Density
-<input id="density" type="range" min="0.01" max="0.02" step="0.0025">
-Clustering Coefficient
-<input id="cluster" type="range" min="0.5" max="0.9" step="0.1">
-<svg id="graph" width="1200" height="800"></svg>
-<svg id="lines" width="1200" height="1200"></svg>
 
+</style>
+<div class="container">
+    <div class="row">
+        <div id="graph" class="col-sm-12 col-md-8">
+            <span>
+            <label for="density">Density</label>
+            <input id="density" type="range" min="0.01" max="0.02" step="0.0025">
+            <label for="cluster">Clustering Coefficient</label>
+            <input id="cluster" type="range" min="0.5" max="0.9" step="0.1">
+            <!--<svg id="graph"></svg>-->
+            </span>
+        </div>
+        <div id="rumor-list" class="col-sm-12 col-md-4">
+        </div>
+        <div id="hist" class="col-sm-4">
+        </div>
+    </div>
+</div>
+
+
+<link 
+    rel="stylesheet" 
+    href="https://maxcdn.bootstrapcdn.com/bootstrap/3.3.7/css/bootstrap.min.css" 
+    integrity="sha384-BVYiiSIFeK1dGmJRAkycuHAHRg32OmUcww7on3RYdg4Va+PmSTsz/K68vbdEjh4u" 
+    crossorigin="anonymous"> 
 <script
   src="https://code.jquery.com/jquery-3.3.1.slim.min.js"
   integrity="sha256-3edrmyuQ0w65f8gfBsqowzjJe2iM6n0nKciPUp8y+7E="
@@ -28,6 +47,14 @@ Clustering Coefficient
 <script src="https://d3js.org/d3-color.v1.min.js"></script>
 <script src="https://d3js.org/d3-scale-chromatic.v1.min.js"></script>
 <script>
+
+// svg to display network
+var svg = d3.select("#graph").append("svg");
+//var width = $("#graph").parent().width();
+var width = $("#graph").outerWidth();
+svg.attr("width", width)
+    .attr("height", "80vh");
+var height = $("#graph").outerHeight();
 
 $(document).ready(function() {
     redraw($("#density").val(), $("#cluster").val())
@@ -45,43 +72,38 @@ $("#density").on("change", function() {
     redraw(density, clustering_coeff);
 })
 
-var svg = d3.select("#graph"),
-    width = +svg.attr("width"),
-    height = +svg.attr("height");
+//var lines = d3.select("#lines"),
+//    margin = {top: 20, right: 20, bottom: 30, left: 50},
+//    line_width = +lines.attr("width") - margin.left - margin.right,
+//    line_height = +lines.attr("height") - margin.top - margin.bottom,
+//    g = lines.append("g").attr("transform", "translate(" + margin.left + "," + margin.top + ")");
 
-var lines = d3.select("#lines"),
-    margin = {top: 20, right: 20, bottom: 30, left: 50},
-    line_width = +lines.attr("width") - margin.left - margin.right,
-    line_height = +lines.attr("height") - margin.top - margin.bottom,
-    g = lines.append("g").attr("transform", "translate(" + margin.left + "," + margin.top + ")");
+//var x = d3.scaleLinear()
+//    .rangeRound([0, line_width])
+//    .domain([-4, 0]);//
+//var y = d3.scaleLinear()
+//    .rangeRound([line_height, 0])
+//    .domain([0, 1]);
 
-var x = d3.scaleLinear()
-    .rangeRound([0, line_width])
-    .domain([-4, 0]);
+//var line = d3.line()
+//    .x((d) => { return x(d.iter); })
+//    .y((d) => { return y(d.pct); })
 
-var y = d3.scaleLinear()
-    .rangeRound([line_height, 0])
-    .domain([0, 1]);
-
-var line = d3.line()
-    .x((d) => { return x(d.iter); })
-    .y((d) => { return y(d.pct); })
-
-g.append("g")
-    .attr("transform", "translate(0, " + height + ")")
-    .call(d3.axisBottom(x))
-    .attr("class", "y axis");
-
-g.append("g")
-    .call(d3.axisLeft(y))
-    .attr("class", "x axis")
-    .append("text")
-    .attr("fill", "#000")
-    .attr("transform", "rotate(-90)")
-    .attr("y", 6)
-    .attr("dy", "0.71em")
-    .attr("text-anchor", "end")
-    .text("Percent");
+//g.append("g")
+//    .attr("transform", "translate(0, " + height + ")")
+//    .call(d3.axisBottom(x))
+//    .attr("class", "y axis");
+//
+//g.append("g")
+//    .call(d3.axisLeft(y))
+//    .attr("class", "x axis")
+//    .append("text")
+//    .attr("fill", "#000")
+//    .attr("transform", "rotate(-90)")
+//    .attr("y", 6)
+//    .attr("dy", "0.71em")
+//    .attr("text-anchor", "end")
+//    .text("Percent");
 
 //g.append("path")
 //    .datum(distribution.susceptible)
@@ -105,183 +127,220 @@ function redraw(density, clustering_coeff) {
 
     var simulation = d3.forceSimulation()
         .force("link", d3.forceLink(graph.links)
-//            .strength(2)
             .id(function(d) { return d.id; })
-//            .iterations(100))
         )
         .force("charge", d3.forceManyBody())
         .force("center", d3.forceCenter(width / 2, height / 2));
 
     d3.json(`data_${density}_${clustering_coeff}.json`, function(error, graph) {
-      if (error) throw error;
+        if (error) throw error;
     
-      var max = -100;
+        var max = -100;
     
-      sources = {}
+        sources = {}
     
-      graph.nodes.forEach((n) => {
-        total_individuals++;
-        n.stories = [];
-        n.neighbors = [];
-        n.lean = +n.lean;
-        if (n.lean != 0.5) {
-            n.stories.push(n.lean)
-            sources[n.id] = n;
-        }
-        if (Math.abs(n.part) > max) max = Math.abs(n.part);
-      });
-    
-      graph.links.forEach((l) => {
-          graph.nodes[l.target].neighbors.push(l.source);
-          graph.nodes[l.source].neighbors.push(l.target);
-      });
-    
-      var link = svg.append("g")
-          .attr("class", "links")
-        .selectAll("line")
-        .data(graph.links)
-        .enter().append("line")
-          .attr("stroke-width", function(d) { return 1; });
-    
-      var radius = d3.scaleSqrt().domain([0, 0.01]).range([2, 8])
-    
-      var nodes = svg.append("g")
-          .attr("class", "nodes")
-        .selectAll("circle")
-        .data(graph.nodes)
-        .enter().append("circle")
-          .attr("r", (d) => { return d.group; }) // radius(d.group)})
-          .attr("fill", "green")
-          .attr("fill", function(d) { return d3.interpolateRdBu(d.lean); })
-          .style("stroke", "#666")
-    //      .on("click", infect)
-          .call(d3.drag()
-              .on("start", dragstarted)
-              .on("drag", dragged)
-              .on("end", dragended));
-    
-      var titles = nodes.append("title");
-    
-      simulation
-          .nodes(graph.nodes)
-          .on("tick", ticked);
-    
-      simulation.force("link")
-          .links(graph.links);
-    
-      function ticked() {
-        link
-            .attr("x1", function(d) { return d.source.x; })
-            .attr("y1", function(d) { return d.source.y; })
-            .attr("x2", function(d) { return d.target.x; })
-            .attr("y2", function(d) { return d.target.y; });
-    
-        nodes
-            .attr("cx", function(d) { return d.x; })
-            .attr("cy", function(d) { return d.y; });
-      }
-    
-      function infect(node) {
-          node.status = "infected";
-          neighbors = graph.links.filter((d) => { 
-            return node.id == d.source.id || node.id == d.target.id; 
-          });
-          neighbors.forEach(function(e) {
-              var neighbor;
-              if (e.source.id = node.id) neighbor = e.target;
-              else if (e.target.id = node.id) neighbor = e.source;
-    
-              if (neighbor.status == "susceptible") {
-                neighbor.susceptibility++;
-              }
-          });
-      }
-    
-      var iter = 0
-    
-      d3.interval(function() {
-        iter++;
-    
-        graph.nodes.forEach(function(node) {
-        
-            if (sources.hasOwnProperty(node.id)) {
-            
-            } else {
-                
-                stories = []
-                node.neighbors.forEach(function(n) {
-                    neighbor = graph.nodes[n];
-                    if (neighbor.stories.length > 0) stories.push(neighbor.stories[0]);
-                });
-    
-                if (Math.random() > 1 / (stories.length + 1)) node.stories.pop();
-                new_story = stories[Math.floor(Math.random() * stories.length)];
-                node.stories.unshift(new_story);
-                if (stories.length > 0) {
-                    node.lean = stories.reduce((a, b) => { return a + b; }) / stories.length;
-                }
-            }
+        graph.nodes.forEach((node) => {
+            total_individuals++;
+            node.rumors = {};
+            node.neighbors = [];
+            node.spreading = 0;
         });
     
-        nodes.style("stroke", (n) => { 
-            return d3.interpolateRdBu(n.lean);
-        })
+        graph.links.forEach((l) => {
+            graph.nodes[l.target].neighbors.push(l.source);
+        });
     
-        titles.text(function(d) { return d.lean; });
+        var link = svg.append("g")
+            .attr("class", "links")
+            .selectAll("line")
+            .data(graph.links)
+            .enter().append("line")
+            .attr("stroke-width", function(d) { return 1; });
     
-    //    var current = {"susceptible": 0, "infected": 0, "recovered": 0};
+        var radius = d3.scaleSqrt().domain([0, 0.01]).range([2, 8])
     
-    //    d3.selectAll("circle")
-    //        .attr("fill", (d) => {
-    //            current[d.status]++;
-    //            if (d.status == "infected") return "red";
-    //            else if (d.status == "recovered") return "blue";
-    //            else return "green";
-    //        })
+        var nodes = svg.append("g")
+            .attr("class", "nodes")
+            .selectAll("circle")
+            .data(graph.nodes)
+            .enter().append("circle")
+            .attr("r", 5)
+            .attr("fill", "green")
+            .attr("fill", function(d) { return d3.interpolateRdBu(d.lean); })
+            .style("stroke", "#666")
+            .on("click", infect)
+            .call(d3.drag()
+                .on("start", dragstarted)
+                .on("drag", dragged)
+                .on("end", dragended));
     
-    //    Object.keys(current).forEach(function(status) {
-    //        console.log(status)
-    //        console.log(distribution[status])
-    //      distribution[status].shift()
-    //      distribution[status].push({"iter": iter, "pct": current[status] / total_individuals})
-    //    })
+        var titles = nodes.append("title");
+    
+        simulation
+            .nodes(graph.nodes)
+            .on("tick", ticked);
+    
+        simulation.force("link")
+            .links(graph.links);
+    
+        function ticked() {
+          link
+              .attr("x1", function(d) { return d.source.x; })
+              .attr("y1", function(d) { return d.source.y; })
+              .attr("x2", function(d) { return d.target.x; })
+              .attr("y2", function(d) { return d.target.y; });
+    
+          nodes
+              .attr("cx", function(d) { return d.x; })
+              .attr("cy", function(d) { return d.y; });
+        }
+
+        function dragstarted(d) {
+            if (!d3.event.active) simulation.alphaTarget(0.3).restart();
+            d.fx = d.x;
+            d.fy = d.y;
+        }
+    
+        function dragged(d) {
+            d.fx = d3.event.x;
+            d.fy = d3.event.y;
+        }
+    
+        function dragended(d) {
+            if (!d3.event.active) simulation.alphaTarget(0);
+            d.fx = null;
+            d.fy = null;
+        }
+
+        var rumor = 1;
+        var selected_rumor = -1;
+        function infect(node) {
+            node.rumors[rumor] = "spreader";
+            var list_item = $("<li>", { id: rumor, text: rumor })
+                .on("mouseover", select_rumor)
+                .on("mouseout", deselect_rumor);
+            $("#rumor-list").prepend(list_item);
+            rumor++;
+        }
+
+        function select_rumor(rumor) {
+            selected_rumor = rumor.target.innerHTML;
+        }
+        
+        function deselect_rumor(rumor) {
+            selected_rumor = -1;
+        }
+    
+        var iter = 0;
+    
+        var lambda = 0.8;
+        var gamma = 0.3;
+        var eta = 0.2;
+        var delta = 0.4;
+    
+        d3.interval(function() {
+            iter++;
+    
+            graph.nodes.forEach(function(node) {
+
+                neighbor = graph.nodes[node.neighbors[Math.floor(Math.random()*node.neighbors.length)]];
+                // if neighbor has not yet interacted with other node this interval
+                if (!neighbor.hasOwnProperty("new_rumors")) {
+                    neighbor.new_rumors = {};
+                    Object.keys(node.rumors).forEach(function(rumor) {
+                        if (node.rumors[rumor] == "spreader") {
+                            if (!neighbor.rumors.hasOwnProperty(rumor)) {
+                                neighbor.new_rumors[rumor] = Math.random() < lambda ? "spreader" : "stifler";
+                            } 
+                        } else if (node.rumors[rumor] == "stifler") {
+                            if (!neighbor.rumors.hasOwnProperty(rumor)) {
+                                neighbor.new_rumors[rumor] = Math.random() < gamma ? "spreader" : "stifler";
+                            } else if (neighbor.rumors[rumor] == "spreader") {
+                                neighbor.new_rumors[rumor] = Math.random() < delta ? "spreader" : "stifler";
+                            }
+                         } else if (neighbor.rumors[rumor] == "spreader" && Math.random() < eta) {
+                            neighbor.new_rumors[rumor] = "stifler";
+                        }
+                    });
+                }
+            });
+
+            // update graph data
+            graph.nodes.forEach(function(node) {
+                if (node.hasOwnProperty("new_rumors")) {
+                    Object.keys(node.new_rumors).forEach(function(rumor) {
+                        node.rumors[rumor] = node.new_rumors[rumor];
+                    });
+                    delete node.new_rumors;
+                }
+
+                // count number of active rumors
+                var spreading = 0;
+                Object.keys(node.rumors).forEach(function(rumor) {
+                    if (node.rumors[rumor] == "spreader") {
+                        spreading++;
+                    }
+                });
+                node.spreading = spreading;
+            });
+    
+            nodes.style("fill", (node) => { 
+                    if (selected_rumor == -1) {
+                        return d3.interpolateReds(node.spreading / 5); 
+                    } else if (node.rumors[selected_rumor] == "spreader") {
+                        return "#E57373";
+                    } else if (node.rumors[selected_rumor] == "stifler") {
+                        return "#81C784";
+                    } else {
+                        return "#4FC3F7";
+                    }
+                })
+
+    
+            titles.text(function(node) { 
+                var result = "";
+                Object.keys(node.rumors).forEach(function(rumor) {
+                    result += rumor + " " + node.rumors[rumor] + "\n";
+                })
+                return result; 
+            });
+    
+    //      var current = {"susceptible": 0, "infected": 0, "recovered": 0};
+    
+    //      d3.selectAll("circle")
+    //          .attr("fill", (d) => {
+    //              current[d.status]++;
+    //              if (d.status == "infected") return "red";
+    //              else if (d.status == "recovered") return "blue";
+    //              else return "green";
+    //          })
+    
+    //      Object.keys(current).forEach(function(status) {
+    //          console.log(status)
+    //          console.log(distribution[status])
+    //        distribution[status].shift()
+    //        distribution[status].push({"iter": iter, "pct": current[status] / total_individuals})
+    //      })
     //
-    //    var lines = d3.select("#lines").transition();
+    //      var lines = d3.select("#lines").transition();
     //
-    //    x.domain([iter - 5, iter]);
-    //    lines.select(".x.axis")
-    //        .duration(250)
-    //        .call(d3.axisBottom(x));
+    //      x.domain([iter - 5, iter]);
+    //      lines.select(".x.axis")
+    //          .duration(250)
+    //          .call(d3.axisBottom(x));
     //
-    //    y.domain([0, 1]);
-    //    lines.select(".y.axis")
-    //        .duration(250)
-    //        .call(d3.axisLeft(y));
+    //      y.domain([0, 1]);
+    //      lines.select(".y.axis")
+    //          .duration(250)
+    //          .call(d3.axisLeft(y));
     //
-    //    lines.select(".line")
-    //        .duration(250)
-    //        .attr("d", line(duration.susceptible));
+    //      lines.select(".line")
+    //          .duration(250)
+    //          .attr("d", line(duration.susceptible));
     
-      }, 1000);
+        }, 1000);
         
     });
-}
-
-function dragstarted(d) {
-  if (!d3.event.active) simulation.alphaTarget(0.3).restart();
-  d.fx = d.x;
-  d.fy = d.y;
-}
-
-function dragged(d) {
-  d.fx = d3.event.x;
-  d.fy = d3.event.y;
-}
-
-function dragended(d) {
-  if (!d3.event.active) simulation.alphaTarget(0);
-  d.fx = null;
-  d.fy = null;
 }
 
 </script>
