@@ -41,13 +41,15 @@ li.stifler {
 </style>
 <div class="container top-buffer">
     <div class="row">
+        <div id="flowchart" class="col-sm-12"></div>
+    </div>
+    <div class="row">
         <div id="graph" class="col-sm-12 col-md-8">
             <span class="slider">
-            <label for="density">Density</label>
-            <input id="density" type="range" min="0.01" max="0.02" step="0.0025">
-            <label for="cluster">Clustering Coefficient</label>
-            <input id="cluster" type="range" min="0.5" max="0.9" step="0.1">
-            <!--<svg id="graph"></svg>-->
+                <label for="density">Density</label>
+                <input id="density" type="range" min="0.01" max="0.02" step="0.0025">
+                <label for="cluster">Clustering Coefficient</label>
+                <input id="cluster" type="range" min="0.5" max="0.9" step="0.1">
             </span>
         </div>
         <div id="rumor-list" class="col-sm-12 col-md-4">
@@ -72,11 +74,96 @@ li.stifler {
 <script src="https://d3js.org/d3-scale-chromatic.v1.min.js"></script>
 <script>
 
+var flow = {}
+flow.width = $("#flowchart").outerWidth();
+flow.height = 100;
+flow.svg = d3.select("#flowchart").append("svg")
+    .attr("width", flow.width)
+    .attr("height", flow.height);
+
+flow.ignorant = flow.svg.append("g")
+    .attr("transform", "translate(" + 
+        (flow.width / 4) + "," + 
+        (flow.height / 2) + ")");
+ 
+flow.ignorant.append("rect")
+    .attr("x", -40)
+    .attr("y", -12.5)
+    .attr("width", 80)
+    .attr("height", 25)
+    .style("stroke", "black")
+    .style("fill", "none");
+
+flow.ignorant.append("text")
+    .attr("id", "ignorant")
+    .attr("x", flow.ignorant.attr("height") / 2)
+    .attr("y", flow.ignorant.attr("width") / 2)
+    .attr("dy", "0.4em")
+    .attr("text-anchor", "middle")
+    .text("Ignorant");
+
+flow.spreader = flow.svg.append("g")
+    .attr("transform", "translate(" + 
+        (flow.width / 2) + "," + 
+        (flow.height / 2) + ")");
+ 
+flow.spreader.append("rect")
+    .attr("x", -40)
+    .attr("y", -12.5)
+    .attr("width", 80)
+    .attr("height", 25)
+    .style("stroke", "black")
+    .style("fill", "none");
+
+flow.spreader.append("text")
+    .attr("id", "ignorant")
+    .attr("x", flow.spreader.attr("height") / 2)
+    .attr("y", flow.spreader.attr("width") / 2)
+    .attr("dy", "0.4em")
+    .attr("text-anchor", "middle")
+    .text("Spreader");
+
+flow.stifler = flow.svg.append("g")
+    .attr("transform", "translate(" + 
+        (3 * flow.width / 4) + "," + 
+        (flow.height / 2) + ")");
+ 
+flow.stifler.append("rect")
+    .attr("x", -40)
+    .attr("y", -12.5)
+    .attr("width", 80)
+    .attr("height", 25)
+    .style("stroke", "black")
+    .style("fill", "none");
+
+flow.stifler.append("text")
+    .attr("id", "ignorant")
+    .attr("x", flow.ignorant.attr("height") / 2)
+    .attr("y", flow.ignorant.attr("width") / 2)
+    .attr("dy", "0.4em")
+    .attr("text-anchor", "middle")
+    .text("Stifler");
+
+// TODO @Ethan, create arrows between the three text boxes to resemble the chart
+// on page 996 of this paper 
+// https://www-sciencedirect-com.offcampus.lib.washington.edu/science/article/pii/S037843711200934X
+flow.arrow = flow.svg
+    .append("defs").append("marker")
+        .attr("id", "arrowhead")
+        .attr("refX", 6)
+        .attr("refY", 6)
+        .attr("markerWidth", 6)
+        .attr("markerHeight", 4)
+        .attr("orient", "auto")
+    .append("path")
+    .attr("d", "M 0 0 12 6 0 12 3 6")
+    .style("fill", "black");
+
 // svg to display network
-var svg = d3.select("#graph").append("svg");
+var graphSvg = d3.select("#graph").append("svg");
 //var width = $("#graph").parent().width();
 var width = $("#graph").outerWidth();
-svg.attr("width", width)
+graphSvg.attr("width", width)
     .attr("height", "80vh");
 var height = $("#graph").outerHeight();
 
@@ -143,14 +230,14 @@ function redraw(density, clustering_coeff) {
             graph.nodes[l.target].neighbors.push(l.source);
         });
     
-        var link = svg.append("g")
+        var link = graphSvg.append("g")
             .attr("class", "links")
             .selectAll("line")
             .data(graph.links)
             .enter().append("line")
             .attr("stroke-width", function(d) { return 1; });
     
-        var nodes = svg.append("g")
+        var nodes = graphSvg.append("g")
             .attr("class", "nodes")
             .selectAll("circle")
             .data(graph.nodes)
