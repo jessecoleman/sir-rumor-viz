@@ -2,6 +2,12 @@
 <meta charset="utf-8">
 <style>
 
+.slider {
+    position: absolute;
+    left: 0px;
+    top: 0px;
+}
+
 .links line {
   stroke: #999;
   stroke-opacity: 0.6;
@@ -36,7 +42,7 @@ li.stifler {
 <div class="container top-buffer">
     <div class="row">
         <div id="graph" class="col-sm-12 col-md-8">
-            <span>
+            <span class="slider">
             <label for="density">Density</label>
             <input id="density" type="range" min="0.01" max="0.02" step="0.0025">
             <label for="cluster">Clustering Coefficient</label>
@@ -232,6 +238,7 @@ function redraw(density, clustering_coeff) {
             if (rumor == 0) {
                 startInterval();
             }
+            d3.select(this).attr("fill", "#D32F2F");
             rumor++;
 
             rumorStates[rumor] = {};
@@ -255,7 +262,7 @@ function redraw(density, clustering_coeff) {
 
             chart.x = d3.scaleLinear()
                 .rangeRound([0, chart.width])
-                .domain([iter - 10, iter]);
+                .domain([iter - 20, iter]);
 
             chart.y = d3.scaleLinear()
                 .rangeRound([chart.height, 0])
@@ -274,11 +281,11 @@ function redraw(density, clustering_coeff) {
                 .y((d) => { return chart.y(d.stifling); });
 
             chart.axisBottom = chart.element.append("g")
-                .attr("transform", "translate(0, " + chart.height + ")")
+                .attr("transform", "translate(" + chart.margin.left + "," + (chart.margin.top + chart.height) + ")")
                 .call(d3.axisBottom(chart.x).ticks(10));
 
             chart.axisLeft = chart.element.append("g")
-                .attr("transform", "translate(" + chart.width + ",0)")
+                .attr("transform", "translate(" + (chart.margin.left + chart.width) + "," + chart.margin.top + ")")
                 .call(d3.axisLeft(chart.y).ticks(5))
                 .append("text")
                 .attr("fill", "#000")
@@ -289,8 +296,8 @@ function redraw(density, clustering_coeff) {
                 .text("Ratios");
 
             chart.line = d3.line()
-                .x((d) => { return chart.x(d.iter); })
-                .y((d) => { return chart.y(d.count); });
+                .x((d) => { return chart.margin.left + chart.x(d.iter); })
+                .y((d) => { return chart.margin.top + chart.y(d.count); });
 
             chart.data = {
                 "ignorant": [{"iter": iter, "count": totalIndividuals - 1}],
@@ -365,12 +372,11 @@ function redraw(density, clustering_coeff) {
                     }
                 });
 
-                console.log(rumorStates);
-                console.log(rumor);
-                rumorStates[rumor].ignorant = totalIndividuals;
-                rumorStates[rumor].spreading = 0;
-                rumorStates[rumor].stifling = 0;
-
+                Object.keys(rumorStates).forEach(function(r) {
+                    rumorStates[r].ignorant = totalIndividuals;
+                    rumorStates[r].spreading = 0;
+                    rumorStates[r].stifling = 0;
+                })
                 // update graph data
                 graph.nodes.forEach(function(node) {
 
@@ -425,19 +431,15 @@ function redraw(density, clustering_coeff) {
                 });
 
                 // update chart data
-                Object.keys(charts).forEach(function(rumor) {
+                Object.keys(charts).forEach(function(r) {
 
-                    chart = charts[rumor];
-                    chart.data.ignorant.push({"iter": iter, "count": rumorStates[rumor].ignorant});
-                    chart.data.spreading.push({"iter": iter, "count": rumorStates[rumor].spreading});
-                    chart.data.stifling.push({"iter": iter, "count": rumorStates[rumor].stifling});
-                    chart.x.domain([iter - 10, iter]);
-                    chart.y.domain([0, totalIndividuals]);
+                    chart = charts[r];
 
-                    console.log(rumorStates[rumor]);
-                    console.log(chart.data);
+                    chart.data.ignorant.push({"iter": iter, "count": rumorStates[r].ignorant});
+                    chart.data.spreading.push({"iter": iter, "count": rumorStates[r].spreading});
+                    chart.data.stifling.push({"iter": iter, "count": rumorStates[r].stifling});
 
-                    //chart.element.transition();
+                    chart.x.domain([iter - 20, iter]);
                     chart.axisBottom
                         .call(d3.axisBottom(chart.x).ticks(10))
                     chart.axisLeft
@@ -450,7 +452,7 @@ function redraw(density, clustering_coeff) {
                         .attr("text-anchor", "end")
                         .text("Ratios");
 
-                    chart.element.select(".line.ignorant")
+                    chart.lineIgnorant
                         .datum(chart.data.ignorant)
                         .attr("d", chart.line);
     
@@ -458,7 +460,7 @@ function redraw(density, clustering_coeff) {
                         .datum(chart.data.spreading)
                         .attr("d", chart.line);
 
-                    chart.element.select(".line.stifling")
+                    chart.lineStifling
                         .datum(chart.data.stifling)
                         .attr("d", chart.line);
                 });
