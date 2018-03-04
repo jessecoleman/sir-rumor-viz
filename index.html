@@ -12,10 +12,14 @@
   stroke-width: 1.5px;
 }
 
+.top-buffer { 
+    margin-top: 20px; 
+}
+
 </style>
 
 </style>
-<div class="container">
+<div class="container top-buffer">
     <div class="row">
         <div id="graph" class="col-sm-12 col-md-8">
             <span>
@@ -71,6 +75,7 @@ $("#density").on("change", function() {
     var clustering_coeff = $("#cluster").val();
     redraw(density, clustering_coeff);
 })
+
 
 //var lines = d3.select("#lines"),
 //    margin = {top: 20, right: 20, bottom: 30, left: 50},
@@ -135,10 +140,6 @@ function redraw(density, clustering_coeff) {
     d3.json(`data_${density}_${clustering_coeff}.json`, function(error, graph) {
         if (error) throw error;
     
-        var max = -100;
-    
-        sources = {}
-    
         graph.nodes.forEach((node) => {
             total_individuals++;
             node.rumors = {};
@@ -157,16 +158,13 @@ function redraw(density, clustering_coeff) {
             .enter().append("line")
             .attr("stroke-width", function(d) { return 1; });
     
-        var radius = d3.scaleSqrt().domain([0, 0.01]).range([2, 8])
-    
         var nodes = svg.append("g")
             .attr("class", "nodes")
             .selectAll("circle")
             .data(graph.nodes)
             .enter().append("circle")
             .attr("r", 5)
-            .attr("fill", "green")
-            .attr("fill", function(d) { return d3.interpolateRdBu(d.lean); })
+            .attr("fill", function(d) { return d3.interpolateReds(0); })
             .style("stroke", "#666")
             .on("click", infect)
             .call(d3.drag()
@@ -175,6 +173,8 @@ function redraw(density, clustering_coeff) {
                 .on("end", dragended));
     
         var titles = nodes.append("title");
+
+        d3.select("#rumor-list").selectAll("svg").remove();
     
         simulation
             .nodes(graph.nodes)
@@ -212,32 +212,79 @@ function redraw(density, clustering_coeff) {
             d.fy = null;
         }
 
+        var iter = 0;
         var rumor = 1;
-        var selected_rumor = -1;
+        var selectedRumor = -1;
+
+        var charts = {};
+        var spread = {};
+        var maxSpread = 20;
+
         function infect(node) {
+            spread[rumor] = 1;
             node.rumors[rumor] = "spreader";
-            var list_item = $("<li>", { id: rumor, text: rumor })
-                .on("mouseover", select_rumor)
-                .on("mouseout", deselect_rumor);
-            $("#rumor-list").prepend(list_item);
+
+            var chart = {};
+            chart.rumor = rumor
+            chart.margin = {top: 20, right: 20, bottom: 30, left: 30};
+            chart.width = $("#rumor-list").outerWidth() - chart.margin.left - chart.margin.right;
+            chart.height = 150 - chart.margin.top - chart.margin.bottom;
+            chart.element = d3.select("#rumor-list")
+                .insert("svg", ":first-child")
+                .attr("id", rumor)
+                .attr("width", chart.width + chart.margin.left + chart.margin.right)
+                .attr("height", chart.height + chart.margin.top + chart.margin.bottom)
+                .on("mouseover", function() { selectedRumor = chart.rumor; })
+                .on("mouseout", function() { selectedRumor = -1; });
+
+            chart.x = d3.scaleLinear()
+                .rangeRound([0, chart.width])
+                .domain([iter - 5, iter]);
+
+            chart.y = d3.scaleLinear()
+                .rangeRound([chart.height, 0])
+                .domain([0, maxSpread]);
+
+            chart.line = d3.line()
+                .x((d) => { return chart.x(d.iter); })
+                .y((d) => { return chart.y(d.count); });
+
+            chart.axisBottom = chart.element.append("g")
+                .attr("transform", "translate(0, " + chart.height + ")")
+                .call(d3.axisBottom(chart.x).ticks(5));
+            
+            chart.axisLeft = chart.element.append("g")
+                .attr("transform", "translate(" + chart.width + ",0)")
+                .call(d3.axisLeft(chart.y).ticks(5))
+                .append("text")
+                .attr("fill", "#000")
+                .attr("transform", "rotate(-90)")
+                .attr("y", 6)
+                .attr("dy", "0.71em")
+                .attr("text-anchor", "end")
+                .text("Ratios");
+
+            chart.data = [{"iter": iter, "count": 1}];
+
+            chart.element.append("path")
+                .attr("class", "line")
+                .attr("fill", "none")
+                .attr("stroke", "red")
+                .attr("stroke-linejoin", "round")
+                .attr("stroke-linecap", "round")
+                .attr("stroke-width", 1.5)
+                .attr("d", chart.line(chart.data));
+            
+            charts[rumor] = chart;
             rumor++;
         }
 
-        function select_rumor(rumor) {
-            selected_rumor = rumor.target.innerHTML;
-        }
-        
-        function deselect_rumor(rumor) {
-            selected_rumor = -1;
-        }
-    
-        var iter = 0;
-    
         var lambda = 0.8;
         var gamma = 0.3;
         var eta = 0.2;
         var delta = 0.4;
     
+
         d3.interval(function() {
             iter++;
     
@@ -265,6 +312,9 @@ function redraw(density, clustering_coeff) {
                 }
             });
 
+            Object.keys(spread).forEach(function(rumor) { 
+                spread[rumor] = 0;
+            });
             // update graph data
             graph.nodes.forEach(function(node) {
                 if (node.hasOwnProperty("new_rumors")) {
@@ -275,21 +325,21 @@ function redraw(density, clustering_coeff) {
                 }
 
                 // count number of active rumors
-                var spreading = 0;
+                node.spreading = 0;
                 Object.keys(node.rumors).forEach(function(rumor) {
                     if (node.rumors[rumor] == "spreader") {
-                        spreading++;
+                        spread[rumor]++;
+                        node.spreading++;
                     }
                 });
-                node.spreading = spreading;
             });
     
             nodes.style("fill", (node) => { 
-                    if (selected_rumor == -1) {
+                    if (selectedRumor == -1) {
                         return d3.interpolateReds(node.spreading / 5); 
-                    } else if (node.rumors[selected_rumor] == "spreader") {
+                    } else if (node.rumors[selectedRumor] == "spreader") {
                         return "#E57373";
-                    } else if (node.rumors[selected_rumor] == "stifler") {
+                    } else if (node.rumors[selectedRumor] == "stifler") {
                         return "#81C784";
                     } else {
                         return "#4FC3F7";
@@ -304,6 +354,36 @@ function redraw(density, clustering_coeff) {
                 })
                 return result; 
             });
+
+            Object.keys(charts).forEach(function(rumor) {
+                chart = charts[rumor];
+                chart.data.push({"iter": iter, "count": spread[rumor]});
+                chart.x.domain([iter - 5, iter]);
+                chart.y.domain([0, maxSpread]);
+                console.log(maxSpread);
+                
+                if (spread[rumor] > maxSpread) {
+                    console.log(maxSpread);
+                    maxSpread = spread[rumor];
+                }
+
+                //chart.element.transition();
+                chart.axisBottom
+                    .call(d3.axisBottom(chart.x).ticks(5))
+                chart.axisLeft
+                    .call(d3.axisLeft(chart.y))
+                    .append("text")
+                    .attr("fill", "#000")
+                    .attr("transform", "rotate(-90)")
+                    .attr("y", 6)
+                    .attr("dy", "0.71em")
+                    .attr("text-anchor", "end")
+                    .text("Ratios");
+
+                chart.element.select(".line")
+                    .datum(chart.data)
+                    .attr("d", chart.line);
+            })
     
     //      var current = {"susceptible": 0, "infected": 0, "recovered": 0};
     
