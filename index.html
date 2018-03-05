@@ -186,23 +186,10 @@ $("#density").on("change", function() {
 var tooltip = d3.select("body").append("div")
     .attr("class", "tooltip");
 
-var activeNode = -1;
-
-function updateTooltip(rumors) {
-   tooltip.html(function(d) {
-        var text = "<ul>";
-        Object.keys(rumors).forEach(function(rumor) {
-            text += "<li class=\"" + rumors[rumor] + "\">" + rumor + " " + rumors[rumor] + "</li>";
-        })
-        return text; 
-    })
-    .style("left", (d3.event.pageX) + "px")
-    .style("top", (d3.event.pageY) + "px");
-}
-
 function redraw(density, clustering_coeff) {
 
-    var totalIndividuals = 0;
+    var totalIndividuals = 0; // for chart viz
+    var activeNode = -1; // for hover effect
 
     d3.selectAll("line").remove();
     d3.selectAll("circle").remove();
@@ -225,6 +212,7 @@ function redraw(density, clustering_coeff) {
             node.newRumors = {};
             node.neighbors = [];
             node.spreading = 0;
+            node.rank = +node.rank;
         });
     
         graph.links.forEach((l) => {
@@ -237,13 +225,17 @@ function redraw(density, clustering_coeff) {
             .data(graph.links)
             .enter().append("line")
             .attr("stroke-width", function(d) { return 1; });
+
+        var radius = d3.scaleSqrt()
+            .range([4, 7])
+            .domain(d3.extent(graph.nodes, function(node) { return node.rank; }));
     
         var nodes = graphSvg.append("g")
             .attr("class", "nodes")
             .selectAll("circle")
             .data(graph.nodes)
             .enter().append("circle")
-            .attr("r", 5)
+            .attr("r", (d) => { return radius(d.rank); })
             .attr("fill", function(d) { return d3.interpolateReds(0); })
             .style("stroke", "#666")
             .on("mouseover", function(node) {
@@ -255,7 +247,7 @@ function redraw(density, clustering_coeff) {
 
                 tooltip.html(function(d) {
                     var text = "<ul>";
-                    Object.keys(node.rumors).forEach(function(rumor) {
+                    Object.keys(node.rumors).reverse().forEach(function(rumor) {
                         text += "<li class=\"" + 
                             node.rumors[rumor] + 
                             "\">" + rumor + " " + 
@@ -273,11 +265,11 @@ function redraw(density, clustering_coeff) {
                     .style("opacity", 0);
 
             })
-            .on("click", infect)
-            .call(d3.drag()
-                .on("start", dragstarted)
-                .on("drag", dragged)
-                .on("end", dragended));
+            .on("click", infect);
+//            .call(d3.drag()
+//                .on("start", dragstarted)
+//                .on("drag", dragged)
+//                .on("end", dragended));
 
         simulation
             .nodes(graph.nodes)
@@ -345,8 +337,8 @@ function redraw(density, clustering_coeff) {
                 .attr("id", rumor)
                 .attr("width", chart.width + chart.margin.left + chart.margin.right)
                 .attr("height", chart.height + chart.margin.top + chart.margin.bottom)
-                .on("mouseover", function() { selectedRumor = chart.rumor; })
-                .on("mouseout", function() { selectedRumor = -1; });
+                .on("mouseover", function() { selectedRumor = chart.rumor; setNodeFill(nodes); })
+                .on("mouseout", function() { selectedRumor = -1; setNodeFill(nodes); });
 
             chart.x = d3.scaleLinear()
                 .rangeRound([0, chart.width])
@@ -501,25 +493,16 @@ function redraw(density, clustering_coeff) {
                     if (node.id == activeNode) {
                         tooltip.html(function(d) {
                             var text = "<ul>";
-                            Object.keys(node.rumors).forEach(function(rumor) {
-                                text += "<li class=\"" + node.rumors[rumor] + "\">" + rumor + " " + node.rumors[rumor] + "</li>";
+                            Object.keys(node.rumors).reverse().forEach(function(rumor) {
+                                text += "<li class=\"" + node.rumors[rumor] + "\">" + 
+                                    rumor + " " + node.rumors[rumor] + "</li>";
                             })
                             return text; 
                         })
                     }
                 });
 
-                nodes.style("fill", (node) => { 
-                    if (selectedRumor == -1) {
-                        return d3.interpolateReds(Math.pow(1 - (1 / Math.pow(2, node.spreading)), 2));
-                    } else if (node.rumors[selectedRumor] == "spreader") {
-                        return "#E57373";
-                    } else if (node.rumors[selectedRumor] == "stifler") {
-                        return "#81C784";
-                    } else {
-                        return d3.interpolateReds(0);
-                    }
-                });
+                setNodeFill(nodes);
 
                 // update chart data
                 Object.keys(charts).forEach(function(r) {
@@ -558,7 +541,23 @@ function redraw(density, clustering_coeff) {
    
             }, 1000);
         }
+
+        function setNodeFill(nodes) {
+            nodes.style("fill", (node) => { 
+                if (selectedRumor == -1) {
+                    return d3.interpolateReds(Math.pow(1 - (1 / Math.pow(2, node.spreading)), 2));
+                } else if (node.rumors[selectedRumor] == "spreader") {
+                    return "#E57373";
+                } else if (node.rumors[selectedRumor] == "stifler") {
+                    return "#81C784";
+                } else {
+                    return d3.interpolateReds(0);
+                }
+            });
+        }
     });
 }
+
+
 
 </script>
