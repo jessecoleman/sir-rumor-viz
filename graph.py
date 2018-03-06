@@ -18,14 +18,23 @@ def gen_powerlaw_graph(density, clustering):
     
     graph = nx.powerlaw_cluster_graph(n, m, p)
 
-    #rank = nx.pagerank(graph)
+    rank = nx.pagerank(graph)
+
+    pos = nx.spring_layout(graph)
+    print(pos)
 
     scepticism = np.random.normal(0, 1, n)
 
     matrix = nx.to_scipy_sparse_matrix(graph)
 
     data = {}
-    data['nodes'] = [{'id': i, 'scept': scepticism[i]} for i in range(n)]
+    data['nodes'] = [{
+            'id': i, 
+            'scept': scepticism[i], 
+            'rank': rank[i],
+            'x': pos[i][0],
+            'y': pos[i][1]
+        } for i in range(n)]
     #data['nodes'] += [{'id': name, 'group': 0.01, 'part': part} for name, part in sources.items()]
     data['links'] = []
 
@@ -64,7 +73,7 @@ def generate_graph(std_dev):
     rows, cols, v = [], [], []
 
     data = {}
-    data['nodes'] = [{'id': i, 'group': 1, 'part': part} for i, part in enumerate(dist)]
+    data['nodes'] = [{'id': i, 'centrality': rank[i], 'part': part} for i, part in enumerate(dist)]
     data['links'] = []
 
     for i in range(population):

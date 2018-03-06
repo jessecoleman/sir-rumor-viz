@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<meta charset="utf-8">
+<meta charset="utf-7">
 <style>
 
 .slider {
@@ -50,7 +50,15 @@ li.stifler {
                 <input id="density" type="range" min="0.01" max="0.02" step="0.0025">
                 <label for="cluster">Clustering Coefficient</label>
                 <input id="cluster" type="range" min="0.5" max="0.9" step="0.1">
-            </span>
+                <label for="lambda"><strong>λ</strong></label>
+                <input id="lambda" type="range" min="0" max="1" step="0.1"><span class="value"/>
+                <label for="eta">η</label>
+                <input id="eta" type="range" min="0" max="1" step="0.1"><span class="value"/>
+                <label for="gamma">γ</label>
+                <input id="gamma" type="range" min="0" max="1" step="0.1"><span class="value"/>
+                <label for="delta">δ</label>
+                <input id="delta" type="range" min="0" max="1" step="0.1"><span class="value"/>
+                </span>
         </div>
         <div id="rumor-list" class="col-sm-12 col-md-4">
         </div>
@@ -76,10 +84,27 @@ li.stifler {
 
 var flow = {}
 flow.width = $("#flowchart").outerWidth();
-flow.height = 100;
+flow.height = 150;
 flow.svg = d3.select("#flowchart").append("svg")
     .attr("width", flow.width)
     .attr("height", flow.height);
+
+flow.defs = flow.svg.append("defs");
+
+flow.arrow = flow.defs
+    .append("marker")
+        .attr("id", "arrow")
+        .attr("refX", 6)
+        .attr("refY", 2)
+        .attr("markerWidth", 10)
+        .attr("markerHeight", 10)
+        .attr("orient", "auto")
+    .append("path")
+        .attr("d", "M0,0 L0,4 L6,2 z")
+        .style("stroke", "black")
+        .style("stroke-width", "1px")
+        .style("marker-end", "url(#arrow)")
+        .style("fill", "#000");
 
 flow.ignorant = flow.svg.append("g")
     .attr("transform", "translate(" + 
@@ -147,29 +172,223 @@ flow.stifler.append("text")
 // TODO @Ethan or @Evan, create arrows between the three text boxes to resemble the chart
 // on page 996 of this paper 
 // https://www-sciencedirect-com.offcampus.lib.washington.edu/science/article/pii/S037843711200934X
-flow.arrow = flow.svg
-    .append("defs").append("marker")
-        .attr("id", "arrowhead")
-        .attr("refX", 6)
-        .attr("refY", 6)
-        .attr("markerWidth", 6)
-        .attr("markerHeight", 4)
-        .attr("orient", "auto")
-    .append("path")
-    .attr("d", "M 0 0 12 6 0 12 3 6")
-    .style("fill", "black");
+flow.x = d3.scaleLinear()
+    .range([0, flow.width])
+    .domain([0, 1]);
 
+flow.y = d3.scaleLinear()
+    .range([0, flow.height])
+    .domain([0, 1]);
+
+flow.line = d3.line()
+    .x((d) => { return d.x; })
+    .y((d) => { return d.y; });
+//    .x((d) => { return flow.x(d.x); })
+//    .y((d) => { return flow.y(d.y); });
+
+//flow.slider = {};
+//flow.slider.svg = flow.svg.append("g")
+//    .attr("class", "slider")
+//    .attr("transform", "translate(" + flow.width/2 + "," + flow.height/2 + ")")
+//
+//flow.slider.x = d3.scaleLinear()
+//    .domain([0, 1])
+//    .range([0, flow.width]);
+//
+//flow.slider.svg.append("line")
+//    .attr("class", "track")
+//    .attr("x1", flow.slider.x.range()[0])
+//    .attr("x2", flow.slider.x.range()[0])
+//    .select(function() { return this.parentNode.appendChild(this.cloneNode(true)); })
+//    .attr("class", "track-inset")
+//    .select(function() { return this.parentNode.appendChild(this.cloneNode(true)); })
+//    .attr("class", "track-overlay")
+//    .call(d3.drag()
+//        .on("start.interrupt", function() { flow.slider.svg.interrupt(); }));
+//
+//flow.slider.insert.insert("g", ".track-overlay")
+//    .attr("class", "ticks")
+//    .attr("transform", "translate(0", + 18 + ")")
+//    .selectAll("text")
+//    .data(flow.x.ticks(10))
+//    .enter().append("text")
+//    .attr("x", flow.x)
+//    .attr("text-anchor", "middle")
+//    .text(function(d) { return d; });
+//
+//flow.slider.handle = flow.slider.svg.insert("circle", ".track-overlay")
+//    .attr("class", "handle")
+//    .attr("r", 9);
+//
+//flow.paramSlider = d3.select("body").append("input")
+//    .attr("position", "absolute")
+//    .attr("type", "range")
+//    .attr("min", 0)
+//    .attr("max", 1)
+//    .attr("opacity", 0)
+//    .attr("width", 80)
+//    .attr("height", 40);
+
+//<input id="cluster" type="range" min="0.5" max="0.9" step="0.1">
+
+flow.params = {
+
+    "lambda": {
+        "data": [
+            {"x": flow.x(0.25) + 40, "y": flow.y(0.5)},
+            {"x": flow.x(0.5) - 40, "y": flow.y(0.5)},
+        ],
+        "text": "Spreader",
+        "symbol": "λ",
+        "x": flow.x(3/8),
+        "y": flow.y(3/8)
+    },
+ 
+    "oneMinusLambda": {
+        "data": [
+            {"x": flow.x(0.25), "y": flow.y(0.5) + 25/2},
+            {"x": flow.x(0.25), "y": flow.y(0.5) + 60},
+            {"x": flow.x(0.75) + 80/4, "y": flow.y(0.5) + 60},
+            {"x": flow.x(0.75) + 80/4, "y": flow.y(0.5) + 25/2}
+        ],
+        "text": "Spreader",
+        "symbol": "1 - λ",
+        "x": flow.x(3/8),
+        "y": flow.y(3/4)
+    },
+ 
+    "eta": {
+        "data": [
+            {"x": flow.x(0.5), "y": flow.y(0.5) - 25/2},
+            {"x": flow.x(0.5), "y": flow.y(0.5) - 40},
+            {"x": flow.x(0.75), "y": flow.y(0.5) - 40},
+            {"x": flow.x(0.75), "y": flow.y(0.5) - 25/2}
+        ],
+        "text": "Spreader",
+        "symbol": "η",
+        "x": flow.x(5/8),
+        "y": flow.y(1/8)
+    },
+ 
+    "gamma": {
+        "data": [
+            {"x": flow.x(0.5) + 40, "y": flow.y(0.5)},
+            {"x": flow.x(0.75) - 40, "y": flow.y(0.5)},
+        ],
+        "text": "Spreader",
+        "symbol": "γ",
+        "x": flow.x(5/8),
+        "y": flow.y(3/8)
+     },
+ 
+    "delta": {
+        "data": [
+            {"x": flow.x(0.5), "y": flow.y(0.5) + 25/2},
+            {"x": flow.x(0.5), "y": flow.y(0.5) + 40},
+            {"x": flow.x(0.75) - 80/4, "y": flow.y(0.5) + 40},
+            {"x": flow.x(0.75) - 80/4, "y": flow.y(0.5) + 25/2},
+        ],
+        "text": "Spreader",
+        "symbol": "δ",
+        "x": flow.x(5/8),
+        "y": flow.y(5/8)
+     }
+};
+
+Object.keys(flow.params).forEach(function(p) {
+    param = flow.params[p];
+
+    flow.svg.append("path")
+        .attr("stroke", "#000")
+        .attr("marker-end", "url(#arrow)")
+        .attr("stroke-width", "1px")
+        .attr("fill", "none")
+        .datum(param.data)
+        .attr("d", flow.line);
+
+    flow.svg.append("text")
+        .attr("x", param.x)
+        .attr("y", param.y)
+        .attr("dy", "0.4em")
+        .attr("text-anchor", "middle")
+        .text(param.symbol)
+        .on("click", function(d) {
+            flow.paramSlider
+                .attr("opacity", 1)
+                .style("left", (d3.event.pageX) + "px")
+                .style("top", (d3.event.pageY) + "px");
+        });
+});
+
+var graph = {};
 // svg to display network
-var graphSvg = d3.select("#graph").append("svg");
+graph.svg = d3.select("#graph").append("svg");
 //var width = $("#graph").parent().width();
-var width = $("#graph").outerWidth();
-graphSvg.attr("width", width)
+graph.width = $("#graph").outerWidth();
+graph.svg.attr("width", graph.width)
     .attr("height", "80vh");
-var height = $("#graph").outerHeight();
+graph.height = $("#graph").outerHeight();
 
 $(document).ready(function() {
     redraw($("#density").val(), $("#cluster").val())
 });
+
+modelParams = {
+    "density": {
+        "min": 0.01,
+        "max": 0.02,
+        "step": 0.0025,
+        "default": 0.10
+    }, "cluster": {
+        "min": 0,
+        "max": 1,
+        "step": 0.1,
+        "default": 0.5
+    }, "lambda": {
+        "min": 0,
+        "max": 1,
+        "step": 0.1,
+        "default": 0.8
+    }, "eta": {
+        "min": 0,
+        "max": 1,
+        "step": 0.1,
+        "default": 0.6,
+    }, "gamma": {
+        "min": 0,
+        "max": 1,
+        "step": 0.1,
+        "default": 0.3
+    }, "delta": {
+        "min": 0,
+        "max": 1,
+        "step": 0.1,
+        "default": 0.2
+    }
+};
+
+
+
+//Object.keys(modelParams).forEach(function(param) {
+//
+//    var slider = d3.slider()
+//        .min(param.min)
+//        .max(param.max)
+//        .step(param.step)
+//        .value(param.default);
+//
+//    d3.select("#" + param)
+//        .call()
+//
+//    var slider = d3.select("#" + param);
+//    slider.on("change", function() {
+//        modelParams[param] = d3.select(this).attr("val");
+//    });
+//
+//    slider.attr("value", modelParams[param]);
+//});
+
+// TODO
 
 $("#cluster").on("change", function() {
     var clustering_coeff = $(this).val();
@@ -186,65 +405,87 @@ $("#density").on("change", function() {
 var tooltip = d3.select("body").append("div")
     .attr("class", "tooltip");
 
+var linkGroup = graph.svg.append("g");
+var nodeGroup = graph.svg.append("g");
+var firstLoad = true;
+ 
 function redraw(density, clustering_coeff) {
 
     var totalIndividuals = 0; // for chart viz
     var activeNode = -1; // for hover effect
 
-    d3.selectAll("line").remove();
-    d3.selectAll("circle").remove();
-
-    var simulation = d3.forceSimulation()
-        .force("link", d3.forceLink(graph.links)
-            .id(function(d) { return d.id; })
-        )
-        .force("charge", d3.forceManyBody())
-        .force("center", d3.forceCenter(width / 2, height / 2));
-
-    d3.json(`data_${density}_${clustering_coeff}.json`, function(error, graph) {
+    d3.json(`data_${density}_${clustering_coeff}.json`, function(error, graph_data) {
         if (error) throw error;
-    
+
         d3.select("#rumor-list").selectAll("svg").remove();
 
-        graph.nodes.forEach((node) => {
+        graph.x = d3.scaleLinear()
+            .domain([-1, 1])
+            .range([0, graph.width]);
+
+        graph.y = d3.scaleLinear()
+            .domain([-1, 1])
+            .range([0, graph.height]);
+
+        graph_data.nodes.forEach((node) => {
             totalIndividuals++;
             node.rumors = {};
             node.newRumors = {};
             node.neighbors = [];
             node.spreading = 0;
             node.rank = +node.rank;
+            node.x = +node.x;
+            node.y = +node.y;
         });
     
-        graph.links.forEach((l) => {
-            graph.nodes[l.target].neighbors.push(l.source);
+        graph_data.links.forEach((l) => {
+            graph_data.nodes[l.target].neighbors.push(l.source);
         });
     
-        var link = graphSvg.append("g")
+        var links = linkGroup.selectAll("line")
+            .data(graph_data.links)
+
+        links.enter().append("line")
+            .merge(links)
             .attr("class", "links")
-            .selectAll("line")
-            .data(graph.links)
-            .enter().append("line")
-            .attr("stroke-width", function(d) { return 1; });
+            .attr("x1", function(d) { return graph.x(graph_data.nodes[d.source].x); })
+            .attr("y1", function(d) { return graph.y(graph_data.nodes[d.source].y); })
+            .attr("x2", function(d) { return graph.x(graph_data.nodes[d.target].x); })
+            .attr("y2", function(d) { return graph.y(graph_data.nodes[d.target].y); })
+            .attr("stroke", "#ccc")
+            .attr("stroke-width", 1)
+            .attr("opacity", 0)
+            .transition().delay(500).duration(100)
+            .attr("opacity", 1)
+
+        links.exit().remove()
 
         var radius = d3.scaleSqrt()
             .range([4, 7])
-            .domain(d3.extent(graph.nodes, function(node) { return node.rank; }));
-    
-        var nodes = graphSvg.append("g")
-            .attr("class", "nodes")
+            .domain(d3.extent(graph_data.nodes, function(node) { return node.rank; }));
+
+        var nodes = nodeGroup
             .selectAll("circle")
-            .data(graph.nodes)
-            .enter().append("circle")
-            .attr("r", (d) => { return radius(d.rank); })
+            .data(graph_data.nodes);
+
+        nodes.enter().append("circle")
+            .merge(nodes)
+            .transition()
+            .duration(500)
+            .attr("class", "nodes")
+            .attr("r", function(d) { return radius(d.rank); })
+            .attr("cx", function(d) { return graph.x(d.x); })
+            .attr("cy", function(d) { return graph.y(d.y); })
             .attr("fill", function(d) { return d3.interpolateReds(0); })
             .style("stroke", "#666")
+
+        nodeGroup.selectAll("circle")
+            .on("click", infect)
             .on("mouseover", function(node) {
                 activeNode = node.id;
-
                 tooltip.transition()
                     .duration(200)
                     .style("opacity", 1);
-
                 tooltip.html(function(d) {
                     var text = "<ul>";
                     Object.keys(node.rumors).reverse().forEach(function(rumor) {
@@ -263,49 +504,7 @@ function redraw(density, clustering_coeff) {
                 tooltip.transition()
                     .duration(200)
                     .style("opacity", 0);
-
-            })
-            .on("click", infect);
-//            .call(d3.drag()
-//                .on("start", dragstarted)
-//                .on("drag", dragged)
-//                .on("end", dragended));
-
-        simulation
-            .nodes(graph.nodes)
-            .on("tick", ticked);
-
-        simulation.force("link")
-            .links(graph.links);
-
-        function ticked() {
-            link
-                .attr("x1", function(d) { return d.source.x; })
-                .attr("y1", function(d) { return d.source.y; })
-                .attr("x2", function(d) { return d.target.x; })
-                .attr("y2", function(d) { return d.target.y; });
-
-            nodes
-                .attr("cx", function(d) { return d.x; })
-                .attr("cy", function(d) { return d.y; });
-        }
-
-        function dragstarted(d) {
-            if (!d3.event.active) simulation.alphaTarget(0.3).restart();
-            d.fx = d.x;
-            d.fy = d.y;
-        }
-
-        function dragged(d) {
-            d.fx = d3.event.x;
-            d.fy = d3.event.y;
-        }
-
-        function dragended(d) {
-            if (!d3.event.active) simulation.alphaTarget(0);
-            d.fx = null;
-            d.fy = null;
-        }
+            });
 
         var iter = 0;
         var rumor = 0;
@@ -313,12 +512,14 @@ function redraw(density, clustering_coeff) {
 
         var charts = {};
         var rumorStates = {};
+        var infecting = false;
 
         function infect(node) {
+            infecting = true;
             if (rumor == 0) {
                 startInterval();
             }
-            d3.select(this).attr("fill", "#D32F2F");
+            d3.select(this).attr("fill", d3.interpolateReds(Math.pow(1 - (1 / Math.pow(2, node.spreading+1)), 2)));
             rumor++;
 
             rumorStates[rumor] = {};
@@ -351,14 +552,6 @@ function redraw(density, clustering_coeff) {
             chart.line = d3.line()
                 .x((d) => { return chart.x(d.iter); })
                 .y((d) => { return chart.y(d.count); });
-
-            chart.spreadLine = d3.line()
-                .x((d) => { return chart.x(d.iter); })
-                .y((d) => { return chart.y(d.spreading); });
-
-            chart.stifledLine = d3.line()
-                .x((d) => { return chart.x(d.iter); })
-                .y((d) => { return chart.y(d.stifling); });
 
             chart.axisBottom = chart.element.append("g")
                 .attr("transform", "translate(" + chart.margin.left + "," + (chart.margin.top + chart.height) + ")")
@@ -416,48 +609,48 @@ function redraw(density, clustering_coeff) {
                 .attr("d", chart.line);
 
             charts[rumor] = chart;
+            infecting = false;
         }
-
-        var lambda = 0.8;
-        var gamma = 0.3;
-        var eta = 0.6;
-        var delta = 0.2;
 
         function startInterval() {
             d3.interval(function() {
                 iter++;
 
+                //while (infecting) {}
+
                 // interaction between nodes and neighbors
-                graph.nodes.forEach(function(node) {
+                graph_data.nodes.forEach(function(node) {
 
-                    neighbor = graph.nodes[node.neighbors[Math.floor(Math.random()*node.neighbors.length)]];
+                    node.neighbors.forEach(function(n) {
+                        neighbor = graph_data.nodes[n];
 
-                    // probability of interacting decreases with number of previous interactions
-                    if (1 / (Object.keys(neighbor.rumors).length + 1) > Math.random()) {
+                        // probability of interacting decreases with number of previous interactions
+                        if (1 / Math.pow(Object.keys(neighbor.rumors).length + 1, 2) > Math.random()) {
 
-                        var spread = false;
-                        var rumorAge = 1;
-                        var r = Math.random();                        
-                        Object.keys(node.rumors).sort().reverse().forEach(function(rumor) {
-                            // probability of sharing rumor given age
-                            if (1 / (1 - Math.pow(2, rumorAge)) < r && !spread) {
-                                spread = true;
-                                if (node.rumors[rumor] == "spreader") {
-                                    if (!neighbor.rumors.hasOwnProperty(rumor)) {
-                                        neighbor.newRumors[rumor] = Math.random() < lambda ? "spreader" : "stifler";
-                                    } else if (neighbor.rumors[rumor] == "spreader") {
-                                        neighbor.newRumors[rumor] = Math.random() > gamma ? "spreader" : "stifler";
-                                    } 
-                                } else if (node.rumors[rumor] == "stifler" && neighbor.rumors[rumor] == "spreader") {
-                                    neighbor.newRumors[rumor] = Math.random() > eta ? "spreader" : "stifler";
+                            var spread = false;
+                            var rumorAge = 1;
+                            var r = Math.random();                        
+                            Object.keys(node.rumors).sort().reverse().forEach(function(rumor) {
+                                // probability of sharing rumor given age
+                                if (1 - (1 / Math.pow(2, rumorAge)) < r && !spread) {
+                                    spread = true;
+                                    if (node.rumors[rumor] == "spreader") {
+                                        if (!neighbor.rumors.hasOwnProperty(rumor)) {
+                                            neighbor.newRumors[rumor] = Math.random() < modelParams.lambda.default ? "spreader" : "stifler";
+                                        } else if (neighbor.rumors[rumor] == "spreader") {
+                                            neighbor.newRumors[rumor] = Math.random() > modelParams.gamma.default ? "spreader" : "stifler";
+                                        }
+                                    } else if (node.rumors[rumor] == "stifler" && neighbor.rumors[rumor] == "spreader") {
+                                        neighbor.newRumors[rumor] = Math.random() > modelParams.eta.default ? "spreader" : "stifler";
+                                    }
+                                } else if (Math.random() < modelParams.delta.default) {
+                                    // probability that node forgets rumor
+                                    node.newRumors[rumor] = "stifler";
                                 }
-                            } else if (Math.random() < delta) {
-                                // probability that node forgets rumor
-                                node.newRumors[rumor] = "stifler";
-                            }
-                            rumorAge++;
-                        });
-                    }
+                                rumorAge++;
+                            });
+                        }
+                    });
                 });
 
                 Object.keys(rumorStates).forEach(function(r) {
@@ -466,7 +659,7 @@ function redraw(density, clustering_coeff) {
                     rumorStates[r].stifling = 0;
                 })
                 // update graph data
-                graph.nodes.forEach(function(node) {
+                graph_data.nodes.forEach(function(node) {
 
                     Object.keys(node.newRumors).forEach(function(rumor) {
                         node.rumors[rumor] = node.newRumors[rumor];
@@ -502,7 +695,7 @@ function redraw(density, clustering_coeff) {
                     }
                 });
 
-                setNodeFill(nodes);
+                setNodeFill(nodeGroup.selectAll("circle"));
 
                 // update chart data
                 Object.keys(charts).forEach(function(r) {
